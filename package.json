@@ -1,0 +1,15 @@
+{
+  "name": "notch-todo",
+  "version": "0.1.0",
+  "description": "桌面刘海屏待办 - macOS notch-shaped todo widget",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}
