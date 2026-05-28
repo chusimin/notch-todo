@@ -39,6 +39,15 @@ function checkSvg() {
   return '<svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderList(priority) {
   const list = document.querySelector(`.todo-list[data-priority="${priority}"]`);
   if (!list) return;
@@ -58,17 +67,19 @@ function renderList(priority) {
     .join('');
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function updateCount(priority) {
+  const countEl = document.querySelector(`.count[data-priority="${priority}"]`);
+  if (!countEl) return;
+  const items = data[priority] || [];
+  const pending = items.filter((t) => !t.done).length;
+  countEl.textContent = String(pending);
 }
 
 function renderAll() {
-  PRIORITIES.forEach((p) => renderList(p));
+  PRIORITIES.forEach((p) => {
+    renderList(p);
+    updateCount(p);
+  });
 }
 
 function addTodo(priority, text) {
@@ -82,6 +93,7 @@ function addTodo(priority, text) {
   });
   saveData(data);
   renderList(priority);
+  updateCount(priority);
 }
 
 function toggleTodo(priority, id) {
@@ -91,12 +103,14 @@ function toggleTodo(priority, id) {
   list[idx].done = !list[idx].done;
   saveData(data);
   renderList(priority);
+  updateCount(priority);
 }
 
 function deleteTodo(priority, id) {
   data[priority] = data[priority].filter((t) => t.id !== id);
   saveData(data);
   renderList(priority);
+  updateCount(priority);
 }
 
 let isExpanded = false;

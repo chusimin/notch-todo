@@ -14,70 +14,78 @@
 
       <div id="card" class="card">
         <header class="card-header">
-          <h1>待办</h1>
-          <span class="card-subtitle">按优先级整理你的事项</span>
+          <h1>优先级待办</h1>
+          <span class="card-subtitle">Eisenhower Matrix · 四象限</span>
         </header>
         <div class="sections">
-          <section class="section" data-priority="P0">
-            <div class="section-header">
-              <span class="badge badge-p0">P0</span>
-              <span class="section-title">紧急且重要</span>
+          <section class="quadrant" data-priority="P0">
+            <div class="quadrant-header">
+              <span class="dot dot-p0"></span>
+              <span class="quadrant-label">P0</span>
+              <span class="quadrant-title">紧急 · 重要</span>
+              <span class="count" data-priority="P0">0</span>
             </div>
             <ul class="todo-list" data-priority="P0"></ul>
             <div class="add-row">
               <input
                 type="text"
-                placeholder="添加 P0 待办..."
+                placeholder="添加..."
                 data-priority="P0"
-                maxlength="100"
+                maxlength="80"
               />
             </div>
           </section>
 
-          <section class="section" data-priority="P1">
-            <div class="section-header">
-              <span class="badge badge-p1">P1</span>
-              <span class="section-title">重要不紧急</span>
+          <section class="quadrant" data-priority="P1">
+            <div class="quadrant-header">
+              <span class="dot dot-p1"></span>
+              <span class="quadrant-label">P1</span>
+              <span class="quadrant-title">重要 · 不紧急</span>
+              <span class="count" data-priority="P1">0</span>
             </div>
             <ul class="todo-list" data-priority="P1"></ul>
             <div class="add-row">
               <input
                 type="text"
-                placeholder="添加 P1 待办..."
+                placeholder="添加..."
                 data-priority="P1"
-                maxlength="100"
+                maxlength="80"
               />
             </div>
           </section>
 
-          <section class="section" data-priority="P2">
-            <div class="section-header">
-              <span class="badge badge-p2">P2</span>
-              <span class="section-title">紧急不重要</span>
+          <section class="quadrant" data-priority="P2">
+            <div class="quadrant-header">
+              <span class="dot dot-p2"></span>
+              <span class="quadrant-label">P2</span>
+              <span class="quadrant-title">紧急 · 不重要</span>
+              <span class="count" data-priority="P2">0</span>
             </div>
             <ul class="todo-list" data-priority="P2"></ul>
             <div class="add-row">
               <input
                 type="text"
-                placeholder="添加 P2 待办..."
+                placeholder="添加..."
                 data-priority="P2"
-                maxlength="100"
+                maxlength="80"
               />
             </div>
           </section>
 
-          <section class="section" data-priority="P3">
-            <div class="section-header">
-              <span class="badge badge-p3">P3</span>
-              <span class="section-title">不紧急不重要</span>
+          <section class="quadrant" data-priority="P3">
+            <div class="quadrant-header">
+              <span class="dot dot-p3"></span>
+              <span class="quadrant-label">P3</span>
+              <span class="quadrant-title">日常 · 待办</span>
+              <span class="count" data-priority="P3">0</span>
             </div>
             <ul class="todo-list" data-priority="P3"></ul>
             <div class="add-row">
               <input
                 type="text"
-                placeholder="添加 P3 待办..."
+                placeholder="添加..."
                 data-priority="P3"
-                maxlength="100"
+                maxlength="80"
               />
             </div>
           </section>

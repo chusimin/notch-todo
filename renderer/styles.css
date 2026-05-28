@@ -1,21 +1,50 @@
 :root {
-  --bg: #000000;
-  --bg-elevated: #1c1c1e;
-  --bg-input: #2c2c2e;
-  --text: #ffffff;
-  --text-secondary: #98989d;
-  --text-tertiary: #636366;
-  --border: rgba(255, 255, 255, 0.08);
-  --p0: #ff453a;
-  --p1: #ff9f0a;
-  --p2: #ffd60a;
-  --p3: #0a84ff;
-  --radius-notch: 14px;
-  --radius-card: 18px;
-  --duration: 280ms;
-  --easing: cubic-bezier(0.4, 0, 0.2, 1);
-  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
-    'Helvetica Neue', sans-serif;
+  /* 背景层级 */
+  --bg-window: rgba(28, 28, 30, 0.72);
+  --bg-quadrant: rgba(255, 255, 255, 0.05);
+  --bg-quadrant-hover: rgba(255, 255, 255, 0.07);
+  --bg-input: rgba(255, 255, 255, 0.06);
+  --bg-input-focus: rgba(255, 255, 255, 0.10);
+  --bg-notch: #000000;
+
+  /* 边框 */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-quadrant: rgba(255, 255, 255, 0.08);
+
+  /* 文本 */
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-tertiary: rgba(255, 255, 255, 0.32);
+  --text-quaternary: rgba(255, 255, 255, 0.20);
+
+  /* 优先级色（苹果系统色） */
+  --p0: #FF453A;
+  --p1: #FF9F0A;
+  --p2: #FFD60A;
+  --p3: #30D158;
+
+  /* 圆角 */
+  --r-notch: 14px;
+  --r-card: 22px;
+  --r-quadrant: 14px;
+  --r-input: 10px;
+  --r-checkbox: 50%;
+
+  /* 间距 8px 系统 */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+
+  /* 动画 */
+  --duration: 240ms;
+  --easing: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* 字体 */
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'PingFang SC', sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, monospace;
 }
 
 * {
@@ -29,10 +58,13 @@ body {
   overflow: hidden;
   background: transparent;
   font-family: var(--font);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   user-select: none;
   -webkit-user-select: none;
   -webkit-app-region: no-drag;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 #app {
@@ -43,170 +75,227 @@ body {
   align-items: center;
 }
 
+/* ============ 刘海条 ============ */
 .notch {
   width: 200px;
   height: 32px;
-  background: var(--bg);
-  border-radius: 0 0 var(--radius-notch) var(--radius-notch);
+  background: var(--bg-notch);
+  border-radius: 0 0 var(--r-notch) var(--r-notch);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background var(--duration) var(--easing);
+  align-self: center;
+  transition: border-radius var(--duration) var(--easing),
+    background var(--duration) var(--easing);
 }
 
 .notch:hover {
-  background: #0a0a0a;
+  border-radius: 0 0 16px 16px;
 }
 
 .notch-dot {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #38383a;
+  background: rgba(255, 255, 255, 0.18);
 }
 
+/* ============ 折叠 / 展开 ============ */
 #app.collapsed .card {
-  opacity: 0;
-  pointer-events: none;
   display: none;
 }
 
+#app.collapsed .notch {
+  display: flex;
+}
+
 #app.expanded {
-  align-items: stretch;
+  align-items: center;
 }
 
 #app.expanded .card {
   display: flex;
   flex-direction: column;
   opacity: 1;
-  pointer-events: auto;
+  transform: scale(1);
 }
 
-#app.expanded .notch {
-  align-self: center;
-}
-
+/* ============ 卡片 ============ */
 .card {
-  flex: 1;
-  background: var(--bg);
-  border-radius: 0 0 var(--radius-card) var(--radius-card);
-  padding: 16px 18px 18px;
+  width: 560px;
+  height: 388px;
+  background: var(--bg-window);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 0.5px solid var(--border-subtle);
+  border-top: none;
+  border-radius: 0 0 var(--r-card) var(--r-card);
+  padding: 16px 16px 14px;
   opacity: 0;
-  transition: opacity var(--duration) var(--easing);
+  transform: scale(0.98);
+  transform-origin: top center;
+  transition: opacity var(--duration) var(--easing),
+    transform var(--duration) var(--easing);
   display: none;
   flex-direction: column;
   overflow: hidden;
 }
 
+/* ============ 卡片头部 ============ */
 .card-header {
+  height: 40px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-bottom: 14px;
-  padding: 0 2px;
+  padding: 0 4px;
 }
 
 .card-header h1 {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   margin: 0;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.1px;
+  line-height: 1.2;
 }
 
 .card-subtitle {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  line-height: 1.2;
 }
 
+/* ============ 2×2 网格 ============ */
 .sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 10px;
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 2px;
+  min-height: 0;
+  margin-top: 8px;
 }
 
-.sections::-webkit-scrollbar {
-  width: 4px;
+/* ============ 象限 ============ */
+.quadrant {
+  background: var(--bg-quadrant);
+  border: 0.5px solid var(--border-quadrant);
+  border-radius: var(--r-quadrant);
+  padding: 10px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: background var(--duration) var(--easing);
 }
 
-.sections::-webkit-scrollbar-track {
-  background: transparent;
+.quadrant:hover {
+  background: var(--bg-quadrant-hover);
 }
 
-.sections::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-}
-
-.sections::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.section {
-  margin-bottom: 14px;
-}
-
-.section:last-child {
-  margin-bottom: 0;
-}
-
-.section-header {
+.quadrant-header {
   display: flex;
   align-items: center;
+  gap: 6px;
   margin-bottom: 6px;
+  flex-shrink: 0;
 }
 
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: #ffffff;
-  line-height: 1.4;
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.badge-p0 {
+.dot-p0 {
   background: var(--p0);
 }
 
-.badge-p1 {
+.dot-p1 {
   background: var(--p1);
 }
 
-.badge-p2 {
+.dot-p2 {
   background: var(--p2);
-  color: #000000;
 }
 
-.badge-p3 {
+.dot-p3 {
   background: var(--p3);
 }
 
-.section-title {
-  font-size: 13px;
+.quadrant-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   color: var(--text-secondary);
-  margin-left: 8px;
 }
 
+.quadrant-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.count {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--border-subtle);
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+
+/* ============ 列表 ============ */
 .todo-list {
   list-style: none;
   padding: 0;
-  margin: 6px 0;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
+.todo-list::-webkit-scrollbar {
+  width: 3px;
+}
+
+.todo-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.todo-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+.todo-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.20);
+}
+
+/* ============ 待办项 ============ */
 .todo-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 4px;
-  font-size: 13px;
-  color: var(--text);
-  border-radius: 6px;
+  gap: 6px;
+  padding: 3px 2px;
+  font-size: 11px;
+  color: var(--text-primary);
+  border-radius: 4px;
+  line-height: 1.4;
   transition: background var(--duration) var(--easing);
 }
 
@@ -219,28 +308,30 @@ body {
 }
 
 .todo-item.done .todo-text {
-  color: var(--text-tertiary);
+  color: var(--text-quaternary);
   text-decoration: line-through;
+  text-decoration-color: var(--text-quaternary);
 }
 
+/* ============ 复选框 ============ */
 .checkbox {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid var(--text-tertiary);
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-checkbox);
+  border: 1.5px solid var(--text-quaternary);
   background: transparent;
   cursor: pointer;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--duration) var(--easing);
   padding: 0;
+  transition: all var(--duration) var(--easing);
 }
 
 .checkbox svg {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   opacity: 0;
   transition: opacity var(--duration) var(--easing);
 }
@@ -271,47 +362,56 @@ body {
 
 .todo-text {
   flex: 1;
-  word-break: break-all;
-  line-height: 1.4;
+  word-break: break-word;
+  cursor: default;
 }
 
+/* ============ 删除按钮 ============ */
 .delete {
   background: transparent;
   border: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 2px 4px;
+  color: var(--text-quaternary);
+  font-size: 10px;
+  border-radius: 3px;
   opacity: 0;
-  transition: all var(--duration) var(--easing);
+  cursor: pointer;
   flex-shrink: 0;
+  transition: opacity var(--duration) var(--easing),
+    color var(--duration) var(--easing);
 }
 
 .delete:hover {
   color: var(--p0);
-  background: rgba(255, 69, 58, 0.1);
 }
 
+/* ============ 输入框 ============ */
 .add-row {
   margin-top: 6px;
+  flex-shrink: 0;
 }
 
 .add-row input {
   width: 100%;
   background: var(--bg-input);
   border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 6px 10px;
-  color: var(--text);
-  font-size: 12px;
+  border-radius: var(--r-input);
+  padding: 5px 8px;
+  color: var(--text-primary);
+  font-size: 11px;
   font-family: var(--font);
   outline: none;
-  transition: border-color var(--duration) var(--easing);
+  transition: background var(--duration) var(--easing),
+    border-color var(--duration) var(--easing);
+}
+
+.add-row input:focus {
+  background: var(--bg-input-focus);
 }
 
 .add-row input::placeholder {
-  color: var(--text-tertiary);
+  color: var(--text-quaternary);
+  font-size: 10px;
 }
 
 .add-row input[data-priority='P0']:focus {
