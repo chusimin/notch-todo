@@ -3,8 +3,8 @@ const path = require('path');
 
 const COLLAPSED_WIDTH = 200;
 const COLLAPSED_HEIGHT = 32;
-const EXPANDED_WIDTH = 420;
-const EXPANDED_HEIGHT = 520;
+const EXPANDED_WIDTH = 560;
+const EXPANDED_HEIGHT = 420;
 
 let mainWindow = null;
 
@@ -45,6 +45,8 @@ function createWindow() {
     fullscreenable: false,
     minimizable: false,
     maximizable: false,
+    roundedCorners: false,
+    vibrancy: 'under-window',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -60,6 +62,15 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    mainWindow.setBounds(
+      {
+        x: getCenteredX(COLLAPSED_WIDTH),
+        y: 0,
+        width: COLLAPSED_WIDTH,
+        height: COLLAPSED_HEIGHT,
+      },
+      false
+    );
   });
 
   mainWindow.on('closed', () => {
@@ -82,7 +93,7 @@ ipcMain.handle('window:set-mode', (event, mode) => {
   }
 
   const x = getCenteredX(width);
-  mainWindow.setBounds({ x, y: 0, width, height }, true);
+  mainWindow.setBounds({ x, y: 0, width, height }, false);
 });
 
 app.whenReady().then(() => {
