@@ -1,4 +1,12 @@
-const { app, BrowserWindow, screen, ipcMain } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  screen,
+  ipcMain,
+  Tray,
+  Menu,
+  nativeImage,
+} = require('electron');
 const path = require('path');
 
 const COLLAPSED_WIDTH = 200;
@@ -7,6 +15,8 @@ const EXPANDED_WIDTH = 560;
 const EXPANDED_HEIGHT = 420;
 
 let mainWindow = null;
+let tray = null;
+let currentMode = 'collapsed';
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -15,7 +25,7 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', () => {
     if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
     }
   });
@@ -25,6 +35,15 @@ function getCenteredX(width) {
   const display = screen.getPrimaryDisplay();
   const screenWidth = display.bounds.width;
   return Math.round((screenWidth - width) / 2);
+}
+
+function applyMode(mode, animate) {
+  if (!mainWindow) return;
+  const width = mode === 'expanded' ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
+  const height = mode === 'expanded' ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+  const x = getCenteredX(width);
+  mainWindow.setBounds({ x, y: 0, width, height }, animate);
+  currentMode = mode;
 }
 
 function createWindow() {
@@ -61,15 +80,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    mainWindow.setBounds(
-      {
-        x: getCenteredX(COLLAPSED_WIDTH),
-        y: 0,
-        width: COLLAPSED_WIDTH,
-        height: COLLAPSED_HEIGHT,
-      },
-      false
-    );
+    applyMode('collapsed', false);
   });
 
   mainWindow.on('closed', () => {
@@ -77,22 +88,72 @@ function createWindow() {
   });
 }
 
-ipcMain.handle('window:set-mode', (event, mode) => {
-  if (!mainWindow) return;
-
-  let width;
-  let height;
-
-  if (mode === 'expanded') {
-    width = EXPANDED_WIDTH;
-    height = EXPANDED_HEIGHT;
-  } else {
-    width = COLLAPSED_WIDTH;
-    height = COLLAPSED_HEIGHT;
+function toggleVisibility() {
+  if (!mainWindow) {
+    createWindow();
+    return;
   }
+  if (mainWindow.isVisible()) {
+    mainWindow.hide();
+  } else {
+    mainWindow.show();
+  }
+  refreshTrayMenu();
+}
 
-  const x = getCenteredX(width);
-  mainWindow.setBounds({ x, y: 0, width, height }, false);
+function refreshTrayMenu() {
+  if (!tray) return;
+  const visible = !!(mainWindow && mainWindow.isVisible());
+  const menu = Menu.buildFromTemplate([
+    {
+      label: visible ? '隐藏刘海' : '显示刘海',
+      click: toggleVisibility,
+    },
+    {
+      label: '重新居中',
+      click: () => applyMode(currentMode, false),
+    },
+    { type: 'separator' },
+    {
+      label: '关于刘海待办',
+      click: () => {
+        const { dialog } = require('electron');
+        dialog.showMessageBox({
+          type: 'info',
+          title: '关于',
+          message: '刘海待办',
+          detail:
+            '一个常驻 macOS 屏幕顶部的优先级待办工具。\n点击刘海展开，再次点击收起。\n数据保存在本地 LocalStorage。',
+          buttons: ['好'],
+        });
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      accelerator: 'Cmd+Q',
+      click: () => app.quit(),
+    },
+  ]);
+  tray.setContextMenu(menu);
+}
+
+function createTray() {
+  tray = new Tray(nativeImage.createEmpty());
+  tray.setTitle('📝');
+  tray.setToolTip('刘海待办');
+  tray.on('click', () => {
+    if (!mainWindow) return;
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+      refreshTrayMenu();
+    }
+  });
+  refreshTrayMenu();
+}
+
+ipcMain.handle('window:set-mode', (event, mode) => {
+  applyMode(mode, true);
 });
 
 app.whenReady().then(() => {
@@ -101,6 +162,7 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+  createTray();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -109,8 +171,6 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+app.on('window-all-closed', (e) => {
+  e.preventDefault();
 });

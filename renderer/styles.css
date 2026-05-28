@@ -87,7 +87,10 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   align-self: center;
-  transition: background var(--duration) var(--easing);
+  transition:
+    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 200ms var(--easing);
 }
 
 #app.expanded .notch {
@@ -100,41 +103,40 @@ body {
   height: 4px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.18);
-  transition: opacity var(--duration) var(--easing);
+  transition: opacity 160ms var(--easing);
 }
 
 #app.expanded .notch-dot {
   opacity: 0;
 }
 
-/* ============ 折叠 / 展开 ============ */
-#app.collapsed .card {
-  display: none;
-}
-
-#app.collapsed .notch {
-  display: flex;
-}
-
-#app.expanded {
-  align-items: center;
-}
-
-#app.expanded .card {
-  display: flex;
-}
-
 /* ============ 卡片 ============ */
 .card {
   width: 560px;
-  height: 388px;
+  flex: 1;
+  min-height: 0;
   background: var(--bg-window);
   border: none;
   border-radius: 0 0 var(--r-card) var(--r-card);
   padding: 16px 16px 14px;
-  display: none;
+  display: flex;
   flex-direction: column;
   overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition:
+    opacity 180ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#app.expanded .card {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition:
+    opacity 220ms cubic-bezier(0.32, 0.72, 0, 1) 80ms,
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1) 60ms;
 }
 
 /* ============ 卡片头部 ============ */
