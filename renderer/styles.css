@@ -87,18 +87,12 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   align-self: center;
-  transition: width var(--duration) var(--easing),
-    border-radius var(--duration) var(--easing),
-    background var(--duration) var(--easing);
-}
-
-#app.collapsed .notch:hover {
-  border-radius: 0 0 16px 16px;
+  transition: background var(--duration) var(--easing);
 }
 
 #app.expanded .notch {
   width: 560px;
-  border-radius: var(--r-card) var(--r-card) 0 0;
+  border-radius: 0;
 }
 
 .notch-dot {
@@ -128,9 +122,6 @@ body {
 
 #app.expanded .card {
   display: flex;
-  flex-direction: column;
-  opacity: 1;
-  transform: scale(1);
 }
 
 /* ============ 卡片 ============ */
@@ -141,11 +132,6 @@ body {
   border: none;
   border-radius: 0 0 var(--r-card) var(--r-card);
   padding: 16px 16px 14px;
-  opacity: 0;
-  transform: scale(0.98);
-  transform-origin: top center;
-  transition: opacity var(--duration) var(--easing),
-    transform var(--duration) var(--easing);
   display: none;
   flex-direction: column;
   overflow: hidden;
