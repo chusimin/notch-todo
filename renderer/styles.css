@@ -1,8 +1,8 @@
 :root {
-  /* 背景层级 */
-  --bg-window: rgba(28, 28, 30, 0.72);
-  --bg-quadrant: rgba(255, 255, 255, 0.05);
-  --bg-quadrant-hover: rgba(255, 255, 255, 0.07);
+  /* 背景层级（统一纯黑底，与刘海一致） */
+  --bg-window: #000000;
+  --bg-quadrant: rgba(255, 255, 255, 0.06);
+  --bg-quadrant-hover: rgba(255, 255, 255, 0.09);
   --bg-input: rgba(255, 255, 255, 0.06);
   --bg-input-focus: rgba(255, 255, 255, 0.10);
   --bg-notch: #000000;
@@ -127,10 +127,7 @@ body {
   width: 560px;
   height: 388px;
   background: var(--bg-window);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 0.5px solid var(--border-subtle);
-  border-top: none;
+  border: none;
   border-radius: 0 0 var(--r-card) var(--r-card);
   padding: 16px 16px 14px;
   opacity: 0;

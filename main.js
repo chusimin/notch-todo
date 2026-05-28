@@ -46,7 +46,6 @@ function createWindow() {
     minimizable: false,
     maximizable: false,
     roundedCorners: false,
-    vibrancy: 'under-window',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
