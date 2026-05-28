@@ -1,15 +1,76 @@
 {
   "name": "notch-todo",
   "version": "0.1.0",
-  "description": "桌面刘海屏待办 - macOS notch-shaped todo widget",
+  "description": "桌面刘海屏待办 - macOS notch-shaped priority todo widget",
   "main": "main.js",
+  "author": "Vibe Coding",
+  "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder --mac dmg",
+    "build:unsigned": "electron-builder --mac dmg -c.mac.identity=null",
+    "build:zip": "electron-builder --mac zip",
+    "pack": "electron-builder --dir"
   },
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.vibecoding.notch-todo",
+    "productName": "NotchTodo",
+    "copyright": "© 2026 Vibe Coding",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "package.json",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/.bin",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "darkModeSupport": true,
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSHighResolutionCapable": true,
+        "CFBundleDisplayName": "刘海待办",
+        "CFBundleName": "刘海待办"
+      }
+    },
+    "dmg": {
+      "title": "刘海待办 ${version}",
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    }
   }
 }
