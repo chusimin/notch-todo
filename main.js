@@ -140,29 +140,43 @@ if (!gotTheLock) {
   });
 }
 
-function getCenteredX(width) {
-  const display = screen.getPrimaryDisplay();
-  const screenWidth = display.bounds.width;
-  return Math.round((screenWidth - width) / 2);
+// 多屏适配：定位到"鼠标当前所在屏"的物理顶端居中
+// 这样接上外接屏后，无论副屏在主屏的左/右/上/下，刘海都跟着用户视线走
+function getTargetDisplay() {
+  try {
+    const cursor = screen.getCursorScreenPoint();
+    return screen.getDisplayNearestPoint(cursor);
+  } catch (e) {
+    return screen.getPrimaryDisplay();
+  }
+}
+
+function getCenteredBounds(width, height) {
+  const d = getTargetDisplay();
+  return {
+    x: Math.round(d.bounds.x + (d.bounds.width - width) / 2),
+    y: d.bounds.y, // 副屏的 y 不一定是 0，可能是负数（如外接屏在主屏上方）
+    width,
+    height,
+  };
 }
 
 function applyMode(mode, animate) {
   if (!mainWindow) return;
   const width = mode === 'expanded' ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
   const height = mode === 'expanded' ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
-  const x = getCenteredX(width);
-  mainWindow.setBounds({ x, y: 0, width, height }, animate);
+  mainWindow.setBounds(getCenteredBounds(width, height), animate);
   currentMode = mode;
 }
 
 function createWindow() {
-  const x = getCenteredX(COLLAPSED_WIDTH);
+  const initial = getCenteredBounds(COLLAPSED_WIDTH, COLLAPSED_HEIGHT);
 
   mainWindow = new BrowserWindow({
     width: COLLAPSED_WIDTH,
     height: COLLAPSED_HEIGHT,
-    x,
-    y: 0,
+    x: initial.x,
+    y: initial.y,
     frame: false,
     transparent: true,
     resizable: false,
@@ -205,6 +219,7 @@ function toggleVisibility() {
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
+    applyMode(currentMode, false); // 显示前先回到鼠标所在屏顶部
     mainWindow.show();
   }
   refreshTrayMenu();
@@ -307,6 +322,21 @@ function ensureFirstRunAutoLaunch() {
   }
 }
 
+function watchDisplayChanges() {
+  // 接/拔外接屏、改变屏幕排列、改分辨率 → 自动重新定位到当前活跃屏顶部居中
+  // 加 100ms 防抖：插拔屏时系统会连续触发多次事件
+  let timer = null;
+  const reposition = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (mainWindow) applyMode(currentMode, false);
+    }, 100);
+  };
+  screen.on('display-added', reposition);
+  screen.on('display-removed', reposition);
+  screen.on('display-metrics-changed', reposition);
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) {
     app.dock.hide();
@@ -315,6 +345,7 @@ app.whenReady().then(() => {
   ensureFirstRunAutoLaunch();
   createWindow();
   createTray();
+  watchDisplayChanges();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
