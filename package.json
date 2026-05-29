@@ -8,7 +8,6 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --mac dmg",
-    "build:unsigned": "electron-builder --mac dmg -c.mac.identity=null",
     "build:zip": "electron-builder --mac zip",
     "pack": "electron-builder --dir"
   },
@@ -20,10 +19,12 @@
     "appId": "com.vibecoding.notch-todo",
     "productName": "NotchTodo",
     "copyright": "© 2026 Vibe Coding",
+    "asar": false,
     "directories": {
       "output": "dist",
       "buildResources": "build"
     },
+    "afterPack": "./build/afterPack.js",
     "files": [
       "main.js",
       "preload.js",
@@ -39,17 +40,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64", "x64"]
+          "arch": ["arm64"]
         }
       ],
+      "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "darkModeSupport": true,
       "extendInfo": {
         "LSUIElement": true,
         "NSHighResolutionCapable": true,
-        "CFBundleDisplayName": "刘海待办",
-        "CFBundleName": "刘海待办"
+        "CFBundleDisplayName": "刘海待办"
       }
     },
     "dmg": {
