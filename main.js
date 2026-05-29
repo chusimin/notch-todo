@@ -210,9 +210,28 @@ function toggleVisibility() {
   refreshTrayMenu();
 }
 
+function isAutoLaunchEnabled() {
+  if (process.platform !== 'darwin') return false;
+  try {
+    return app.getLoginItemSettings().openAtLogin;
+  } catch (e) {
+    return false;
+  }
+}
+
+function setAutoLaunch(enabled) {
+  if (process.platform !== 'darwin') return;
+  try {
+    app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false });
+  } catch (e) {
+    // ignore
+  }
+}
+
 function refreshTrayMenu() {
   if (!tray) return;
   const visible = !!(mainWindow && mainWindow.isVisible());
+  const autoLaunch = isAutoLaunchEnabled();
   const menu = Menu.buildFromTemplate([
     {
       label: visible ? '隐藏刘海' : '显示刘海',
@@ -221,6 +240,16 @@ function refreshTrayMenu() {
     {
       label: '重新居中',
       click: () => applyMode(currentMode, false),
+    },
+    { type: 'separator' },
+    {
+      label: '开机自动启动',
+      type: 'checkbox',
+      checked: autoLaunch,
+      click: (item) => {
+        setAutoLaunch(item.checked);
+        refreshTrayMenu();
+      },
     },
     { type: 'separator' },
     {
@@ -264,11 +293,26 @@ ipcMain.handle('window:set-mode', (event, mode) => {
   applyMode(mode, true);
 });
 
+function ensureFirstRunAutoLaunch() {
+  // 首次运行时默认开启开机自启；之后尊重用户在托盘菜单的选择
+  if (process.platform !== 'darwin') return;
+  const fs = require('fs');
+  const marker = path.join(app.getPath('userData'), '.first-run-done');
+  if (fs.existsSync(marker)) return;
+  try {
+    setAutoLaunch(true);
+    fs.writeFileSync(marker, String(Date.now()));
+  } catch (e) {
+    // ignore
+  }
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) {
     app.dock.hide();
   }
 
+  ensureFirstRunAutoLaunch();
   createWindow();
   createTray();
 
