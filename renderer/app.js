@@ -146,13 +146,41 @@ card.addEventListener('click', (e) => {
 PRIORITIES.forEach((priority) => {
   const input = document.querySelector(`.add-row input[data-priority="${priority}"]`);
   if (!input) return;
+  const row = input.closest('.add-row');
+
+  // 连按两次回车才提交：第一次回车进入“待确认”状态，第二次回车真正提交。
+  // 中途继续输入（按下其它键）或输入框失焦都会重置，必须是连续两次回车。
+  let armed = false;
+
+  function disarm() {
+    if (!armed) return;
+    armed = false;
+    if (row) row.classList.remove('armed');
+  }
+
   input.addEventListener('keydown', (e) => {
+    if (e.isComposing) return; // 输入法组合输入中，忽略
     if (e.key === 'Enter') {
       e.preventDefault();
-      addTodo(priority, input.value);
-      input.value = '';
+      if (!input.value.trim()) {
+        disarm();
+        return;
+      }
+      if (armed) {
+        addTodo(priority, input.value);
+        input.value = '';
+        disarm();
+      } else {
+        armed = true;
+        if (row) row.classList.add('armed');
+      }
+      return;
     }
+    // 任意其它按键都重置确认，确保必须是连续两次回车
+    disarm();
   });
+
+  input.addEventListener('blur', disarm);
 });
 
 PRIORITIES.forEach((priority) => {
