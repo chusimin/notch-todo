@@ -385,6 +385,34 @@ body {
 .add-row {
   margin-top: 6px;
   flex-shrink: 0;
+  position: relative;
+}
+
+/* 连按两次回车提交：第一次回车后浮出确认提示 */
+.add-row::after {
+  content: '↵ 再按一次回车提交';
+  position: absolute;
+  right: 4px;
+  bottom: calc(100% + 5px);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.92);
+  border: 0.5px solid var(--border-quadrant);
+  padding: 2px 7px;
+  border-radius: 7px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity var(--duration) var(--easing),
+    transform var(--duration) var(--easing);
+}
+
+.add-row.armed::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .add-row input {
