@@ -3,7 +3,7 @@ const PRIORITIES = ['P0', 'P1', 'P2', 'P3'];
 
 const app = document.getElementById('app');
 const notch = document.getElementById('notch');
-const card = document.getElementById('card');
+const panel = document.getElementById('panel');
 
 function loadData() {
   try {
@@ -125,6 +125,10 @@ async function setMode(expanded) {
     app.classList.remove('expanded');
     app.classList.add('collapsed');
   }
+  if (expanded) {
+    // 展开后面板从隐藏变为可见，tab 尺寸此时才可量，校准激活胶囊位置
+    requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
+  }
   if (window.notchAPI && typeof window.notchAPI.setMode === 'function') {
     try {
       await window.notchAPI.setMode(expanded ? 'expanded' : 'collapsed');
@@ -139,9 +143,64 @@ notch.addEventListener('click', (e) => {
   setMode(!isExpanded);
 });
 
-card.addEventListener('click', (e) => {
+panel.addEventListener('click', (e) => {
   e.stopPropagation();
 });
+
+// ============ Tab 切换 ============
+const TAB_KEY = 'notch-active-tab';
+const TABS = ['home', 'todo', 'apps'];
+const tabButtons = Array.from(document.querySelectorAll('.tab'));
+const tabPanels = Array.from(document.querySelectorAll('.tab-panel'));
+const tabIndicator = document.getElementById('tab-indicator');
+const collapseBtn = document.getElementById('collapse-btn');
+
+let activeTab = 'home';
+
+function positionIndicator() {
+  const btn = tabButtons.find((b) => b.dataset.tab === activeTab);
+  if (!btn || !tabIndicator) return;
+  tabIndicator.style.width = `${btn.offsetWidth}px`;
+  tabIndicator.style.transform = `translateX(${btn.offsetLeft}px)`;
+}
+
+function setActiveTab(name) {
+  if (!TABS.includes(name)) name = 'home';
+  activeTab = name;
+  tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  tabPanels.forEach((p) => p.classList.toggle('active', p.id === `tab-${name}`));
+  positionIndicator();
+  try {
+    localStorage.setItem(TAB_KEY, name);
+  } catch (e) {
+    // ignore quota errors
+  }
+}
+
+tabButtons.forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setActiveTab(btn.dataset.tab);
+  });
+});
+
+if (collapseBtn) {
+  collapseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setMode(false);
+  });
+}
+
+function initTab() {
+  let saved = 'home';
+  try {
+    const stored = localStorage.getItem(TAB_KEY);
+    if (stored && TABS.includes(stored)) saved = stored;
+  } catch (e) {
+    // ignore
+  }
+  setActiveTab(saved);
+}
 
 PRIORITIES.forEach((priority) => {
   const input = document.querySelector(`.add-row input[data-priority="${priority}"]`);
@@ -202,3 +261,4 @@ PRIORITIES.forEach((priority) => {
 });
 
 renderAll();
+initTab();

@@ -1,50 +1,58 @@
 :root {
-  /* 背景层级（统一纯黑底，与刘海一致） */
-  --bg-window: #000000;
-  --bg-quadrant: rgba(255, 255, 255, 0.06);
-  --bg-quadrant-hover: rgba(255, 255, 255, 0.09);
-  --bg-input: rgba(255, 255, 255, 0.06);
-  --bg-input-focus: rgba(255, 255, 255, 0.10);
-  --bg-notch: #000000;
+  /* ============ 颜色 · 纯单色体系 ============ */
+  --bg-base: #000000;
+  --surface-1: rgba(255, 255, 255, 0.045);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-3: rgba(255, 255, 255, 0.10);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-soft: rgba(255, 255, 255, 0.06);
+  --highlight-top: rgba(255, 255, 255, 0.07);
+  --tile-highlight: rgba(255, 255, 255, 0.05);
+  --squircle-highlight: rgba(255, 255, 255, 0.16);
 
-  /* 边框 */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-quadrant: rgba(255, 255, 255, 0.08);
+  --text-1: rgba(255, 255, 255, 0.92);
+  --text-2: rgba(255, 255, 255, 0.55);
+  --text-3: rgba(255, 255, 255, 0.40);
+  --text-4: rgba(255, 255, 255, 0.25);
 
-  /* 文本 */
-  --text-primary: rgba(255, 255, 255, 0.95);
-  --text-secondary: rgba(255, 255, 255, 0.55);
-  --text-tertiary: rgba(255, 255, 255, 0.32);
-  --text-quaternary: rgba(255, 255, 255, 0.20);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+  --tooltip-bg: rgba(0, 0, 0, 0.92);
+  --item-hover: rgba(255, 255, 255, 0.04);
+  --panel-shadow: rgba(0, 0, 0, 0.6);
 
-  /* 优先级色（苹果系统色） */
+  /* 功能色（唯一例外：待办优先级点） */
   --p0: #FF453A;
   --p1: #FF9F0A;
   --p2: #FFD60A;
   --p3: #30D158;
 
-  /* 圆角 */
+  /* ============ 圆角 ============ */
   --r-notch: 14px;
-  --r-card: 22px;
-  --r-quadrant: 14px;
+  --r-panel: 24px;
+  --r-tile: 18px;
+  --r-squircle: 12px;
   --r-input: 10px;
-  --r-checkbox: 50%;
+  --r-pill: 999px;
 
-  /* 间距 8px 系统 */
+  /* ============ 间距 · 8pt ============ */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
   --s-4: 16px;
   --s-5: 20px;
+  --s-6: 24px;
 
-  /* 动画 */
-  --duration: 240ms;
-  --easing: cubic-bezier(0.32, 0.72, 0, 1);
-
-  /* 字体 */
-  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+  /* ============ 字体 ============ */
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
     'PingFang SC', sans-serif;
   --font-mono: 'SF Mono', ui-monospace, monospace;
+
+  /* ============ 动效 ============ */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --d-fast: 180ms;
+  --d-base: 240ms;
+  --d-slow: 320ms;
 }
 
 * {
@@ -64,7 +72,7 @@ body {
   user-select: none;
   -webkit-user-select: none;
   -webkit-app-region: no-drag;
-  color: var(--text-primary);
+  color: var(--text-1);
 }
 
 #app {
@@ -79,7 +87,7 @@ body {
 .notch {
   width: 200px;
   height: 32px;
-  background: var(--bg-notch);
+  background: var(--bg-base);
   border-radius: 0 0 var(--r-notch) var(--r-notch);
   display: flex;
   align-items: center;
@@ -88,13 +96,13 @@ body {
   flex-shrink: 0;
   align-self: center;
   transition:
-    width 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 260ms cubic-bezier(0.32, 0.72, 0, 1),
-    background 200ms var(--easing);
+    width var(--d-slow) var(--ease),
+    border-radius 260ms var(--ease),
+    background 200ms var(--ease);
 }
 
 #app.expanded .notch {
-  width: 560px;
+  width: 620px;
   border-radius: 0;
 }
 
@@ -102,23 +110,43 @@ body {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
-  transition: opacity 160ms var(--easing);
+  background: var(--text-4);
+  transition: opacity 160ms var(--ease);
 }
 
 #app.expanded .notch-dot {
   opacity: 0;
 }
 
-/* ============ 卡片 ============ */
-.card {
-  width: 560px;
+/* ============ 玻璃材质（复用配方） ============ */
+.tile {
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-tile);
+  box-shadow: inset 0 1px 0 var(--tile-highlight);
+  transition: background var(--d-base) var(--ease);
+}
+
+.tile:hover {
+  background: var(--surface-2);
+}
+
+.squircle {
+  border-radius: var(--r-squircle);
+  box-shadow: inset 0 1px 0 var(--squircle-highlight);
+}
+
+/* ============ 展开面板 ============ */
+.panel {
+  width: 620px;
   flex: 1;
   min-height: 0;
-  background: var(--bg-window);
-  border: none;
-  border-radius: 0 0 var(--r-card) var(--r-card);
-  padding: 16px 16px 14px;
+  background: var(--bg-base);
+  border: 1px solid var(--hairline);
+  border-top: none;
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
+  box-shadow: 0 26px 60px var(--panel-shadow), inset 0 1px 0 var(--highlight-top);
+  padding: var(--s-4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -126,71 +154,209 @@ body {
   pointer-events: none;
   transform: translateY(-6px);
   transition:
-    opacity 180ms cubic-bezier(0.32, 0.72, 0, 1),
-    transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+    opacity var(--d-fast) var(--ease),
+    transform 220ms var(--ease);
 }
 
-#app.expanded .card {
+#app.expanded .panel {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
   transition:
-    opacity 220ms cubic-bezier(0.32, 0.72, 0, 1) 80ms,
-    transform 260ms cubic-bezier(0.32, 0.72, 0, 1) 60ms;
+    opacity 220ms var(--ease) 80ms,
+    transform 260ms var(--ease) 60ms;
 }
 
-/* ============ 卡片头部 ============ */
-.card-header {
-  height: 40px;
+/* ============ 顶栏 ============ */
+.topbar {
+  height: 42px;
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
 }
 
-.card-header h1 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  letter-spacing: -0.1px;
-  line-height: 1.2;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+  min-width: 0;
 }
 
-.card-subtitle {
-  font-size: 10px;
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.brand-label {
+  font-size: 11px;
   font-weight: 500;
-  color: var(--text-tertiary);
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  line-height: 1.2;
+  letter-spacing: 0.4px;
+  color: var(--text-3);
+  white-space: nowrap;
 }
 
-/* ============ 2×2 网格 ============ */
+/* ============ Tab 分段控件 ============ */
+.tabs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 3px;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-pill);
+}
+
+.tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-pill);
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--d-base) var(--ease);
+}
+
+.tab:hover {
+  color: var(--text-2);
+}
+
+.tab.active {
+  color: var(--text-1);
+}
+
+.tab-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.tab-indicator {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: calc(100% - 6px);
+  width: 0;
+  background: var(--surface-2);
+  border-radius: var(--r-pill);
+  pointer-events: none;
+  transform: translateX(0);
+  transition:
+    transform var(--d-slow) var(--ease),
+    width var(--d-slow) var(--ease);
+}
+
+/* ============ 顶栏右侧 ============ */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.collapse-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background var(--d-base) var(--ease),
+    color var(--d-base) var(--ease);
+}
+
+.collapse-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.collapse-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============ 内容区 · Tab 面板 ============ */
+.panels {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--s-3);
+}
+
+.tab-panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition:
+    opacity var(--d-fast) var(--ease),
+    transform var(--d-fast) var(--ease);
+}
+
+.tab-panel.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition:
+    opacity 220ms var(--ease) 40ms,
+    transform 220ms var(--ease) 40ms;
+}
+
+/* 占位面板 */
+.placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  color: var(--text-3);
+}
+
+/* ============ 待办 · 2×2 网格 ============ */
 .sections {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 10px;
-  flex: 1;
-  min-height: 0;
-  margin-top: 8px;
+  gap: var(--s-3);
+  height: 100%;
 }
 
-/* ============ 象限 ============ */
+/* ============ 象限 tile ============ */
 .quadrant {
-  background: var(--bg-quadrant);
-  border: 0.5px solid var(--border-quadrant);
-  border-radius: var(--r-quadrant);
-  padding: 10px 10px 8px;
+  padding: var(--s-3) var(--s-3) var(--s-2);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  transition: background var(--duration) var(--easing);
-}
-
-.quadrant:hover {
-  background: var(--bg-quadrant-hover);
 }
 
 .quadrant-header {
@@ -225,16 +391,17 @@ body {
 }
 
 .quadrant-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  color: var(--text-2);
 }
 
 .quadrant-title {
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-primary);
+  letter-spacing: 0.2px;
+  color: var(--text-1);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -242,15 +409,16 @@ body {
 }
 
 .count {
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  background: var(--border-subtle);
-  padding: 1px 5px;
-  border-radius: 8px;
-  min-width: 14px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--surface-1);
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  min-width: 16px;
   text-align: center;
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   line-height: 1.4;
 }
 
@@ -274,12 +442,12 @@ body {
 }
 
 .todo-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--scrollbar-thumb);
   border-radius: 2px;
 }
 
 .todo-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.20);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* ============ 待办项 ============ */
@@ -288,15 +456,16 @@ body {
   align-items: center;
   gap: 6px;
   padding: 3px 2px;
-  font-size: 11px;
-  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-1);
   border-radius: 4px;
   line-height: 1.4;
-  transition: background var(--duration) var(--easing);
+  transition: background var(--d-base) var(--ease);
 }
 
 .todo-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--item-hover);
 }
 
 .todo-item:hover .delete {
@@ -304,17 +473,17 @@ body {
 }
 
 .todo-item.done .todo-text {
-  color: var(--text-quaternary);
+  color: var(--text-4);
   text-decoration: line-through;
-  text-decoration-color: var(--text-quaternary);
+  text-decoration-color: var(--text-4);
 }
 
 /* ============ 复选框 ============ */
 .checkbox {
-  width: 12px;
-  height: 12px;
-  border-radius: var(--r-checkbox);
-  border: 1.5px solid var(--text-quaternary);
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-4);
   background: transparent;
   cursor: pointer;
   flex-shrink: 0;
@@ -322,14 +491,14 @@ body {
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: all var(--duration) var(--easing);
+  transition: all var(--d-base) var(--ease);
 }
 
 .checkbox svg {
   width: 8px;
   height: 8px;
   opacity: 0;
-  transition: opacity var(--duration) var(--easing);
+  transition: opacity var(--d-base) var(--ease);
 }
 
 .todo-item.done .checkbox svg {
@@ -367,14 +536,15 @@ body {
   background: transparent;
   border: none;
   padding: 2px 4px;
-  color: var(--text-quaternary);
-  font-size: 10px;
+  color: var(--text-4);
+  font-size: 11px;
   border-radius: 3px;
   opacity: 0;
   cursor: pointer;
   flex-shrink: 0;
-  transition: opacity var(--duration) var(--easing),
-    color var(--duration) var(--easing);
+  transition:
+    opacity var(--d-base) var(--ease),
+    color var(--d-base) var(--ease);
 }
 
 .delete:hover {
@@ -394,20 +564,21 @@ body {
   position: absolute;
   right: 4px;
   bottom: calc(100% + 5px);
-  font-size: 9px;
+  font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.2px;
-  color: var(--text-secondary);
-  background: rgba(0, 0, 0, 0.92);
-  border: 0.5px solid var(--border-quadrant);
+  color: var(--text-2);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--hairline);
   padding: 2px 7px;
   border-radius: 7px;
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   transform: translateY(3px);
-  transition: opacity var(--duration) var(--easing),
-    transform var(--duration) var(--easing);
+  transition:
+    opacity var(--d-base) var(--ease),
+    transform var(--d-base) var(--ease);
 }
 
 .add-row.armed::after {
@@ -417,25 +588,27 @@ body {
 
 .add-row input {
   width: 100%;
-  background: var(--bg-input);
+  background: var(--surface-1);
   border: 1px solid transparent;
   border-radius: var(--r-input);
   padding: 5px 8px;
-  color: var(--text-primary);
-  font-size: 11px;
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-weight: 400;
   font-family: var(--font);
   outline: none;
-  transition: background var(--duration) var(--easing),
-    border-color var(--duration) var(--easing);
+  transition:
+    background var(--d-base) var(--ease),
+    border-color var(--d-base) var(--ease);
 }
 
 .add-row input:focus {
-  background: var(--bg-input-focus);
+  background: var(--surface-3);
 }
 
 .add-row input::placeholder {
-  color: var(--text-quaternary);
-  font-size: 10px;
+  color: var(--text-4);
+  font-size: 11px;
 }
 
 .add-row input[data-priority='P0']:focus {

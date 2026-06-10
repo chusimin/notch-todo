@@ -12,82 +12,138 @@
         <div class="notch-dot"></div>
       </div>
 
-      <div id="card" class="card">
-        <header class="card-header">
-          <h1>优先级待办</h1>
-          <span class="card-subtitle">Eisenhower Matrix · 四象限</span>
+      <div id="panel" class="panel">
+        <header class="topbar">
+          <div class="brand">
+            <div class="brand-mark squircle" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 7.5 9.5 4 19 7.5v6L9.5 17 5 13.5z" />
+              </svg>
+            </div>
+            <span class="brand-label">刘海坞</span>
+          </div>
+
+          <div class="tabs" id="tabs" role="tablist">
+            <button class="tab" type="button" data-tab="home" role="tab">
+              <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 11.5 12 4l8 7.5" />
+                <path d="M6 10v9h12v-9" />
+              </svg>
+              <span class="tab-label">首页</span>
+            </button>
+            <button class="tab" type="button" data-tab="todo" role="tab">
+              <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 7h10" />
+                <path d="M4 12h10" />
+                <path d="M4 17h7" />
+                <path d="M17.5 7.5 19 9l2.5-3" />
+              </svg>
+              <span class="tab-label">待办</span>
+            </button>
+            <button class="tab" type="button" data-tab="apps" role="tab">
+              <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
+                <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
+                <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
+                <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
+              </svg>
+              <span class="tab-label">应用</span>
+            </button>
+            <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
+          </div>
+
+          <div class="topbar-actions">
+            <button class="collapse-btn squircle" id="collapse-btn" type="button" aria-label="收起">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 15l6-6 6 6" />
+              </svg>
+            </button>
+          </div>
         </header>
-        <div class="sections">
-          <section class="quadrant" data-priority="P0">
-            <div class="quadrant-header">
-              <span class="dot dot-p0"></span>
-              <span class="quadrant-label">P0</span>
-              <span class="quadrant-title">紧急 · 重要</span>
-              <span class="count" data-priority="P0">0</span>
-            </div>
-            <ul class="todo-list" data-priority="P0"></ul>
-            <div class="add-row">
-              <input
-                type="text"
-                placeholder="添加..."
-                data-priority="P0"
-                maxlength="80"
-              />
+
+        <div class="panels" id="panels">
+          <section id="tab-home" class="tab-panel" role="tabpanel">
+            <div class="placeholder">首页 · 即将到来</div>
+          </section>
+
+          <section id="tab-todo" class="tab-panel" role="tabpanel">
+            <div class="sections">
+              <section class="quadrant tile" data-priority="P0">
+                <div class="quadrant-header">
+                  <span class="dot dot-p0"></span>
+                  <span class="quadrant-label">P0</span>
+                  <span class="quadrant-title">紧急 · 重要</span>
+                  <span class="count" data-priority="P0">0</span>
+                </div>
+                <ul class="todo-list" data-priority="P0"></ul>
+                <div class="add-row">
+                  <input
+                    type="text"
+                    placeholder="添加..."
+                    data-priority="P0"
+                    maxlength="80"
+                  />
+                </div>
+              </section>
+
+              <section class="quadrant tile" data-priority="P1">
+                <div class="quadrant-header">
+                  <span class="dot dot-p1"></span>
+                  <span class="quadrant-label">P1</span>
+                  <span class="quadrant-title">重要 · 不紧急</span>
+                  <span class="count" data-priority="P1">0</span>
+                </div>
+                <ul class="todo-list" data-priority="P1"></ul>
+                <div class="add-row">
+                  <input
+                    type="text"
+                    placeholder="添加..."
+                    data-priority="P1"
+                    maxlength="80"
+                  />
+                </div>
+              </section>
+
+              <section class="quadrant tile" data-priority="P2">
+                <div class="quadrant-header">
+                  <span class="dot dot-p2"></span>
+                  <span class="quadrant-label">P2</span>
+                  <span class="quadrant-title">紧急 · 不重要</span>
+                  <span class="count" data-priority="P2">0</span>
+                </div>
+                <ul class="todo-list" data-priority="P2"></ul>
+                <div class="add-row">
+                  <input
+                    type="text"
+                    placeholder="添加..."
+                    data-priority="P2"
+                    maxlength="80"
+                  />
+                </div>
+              </section>
+
+              <section class="quadrant tile" data-priority="P3">
+                <div class="quadrant-header">
+                  <span class="dot dot-p3"></span>
+                  <span class="quadrant-label">P3</span>
+                  <span class="quadrant-title">日常 · 待办</span>
+                  <span class="count" data-priority="P3">0</span>
+                </div>
+                <ul class="todo-list" data-priority="P3"></ul>
+                <div class="add-row">
+                  <input
+                    type="text"
+                    placeholder="添加..."
+                    data-priority="P3"
+                    maxlength="80"
+                  />
+                </div>
+              </section>
             </div>
           </section>
 
-          <section class="quadrant" data-priority="P1">
-            <div class="quadrant-header">
-              <span class="dot dot-p1"></span>
-              <span class="quadrant-label">P1</span>
-              <span class="quadrant-title">重要 · 不紧急</span>
-              <span class="count" data-priority="P1">0</span>
-            </div>
-            <ul class="todo-list" data-priority="P1"></ul>
-            <div class="add-row">
-              <input
-                type="text"
-                placeholder="添加..."
-                data-priority="P1"
-                maxlength="80"
-              />
-            </div>
-          </section>
-
-          <section class="quadrant" data-priority="P2">
-            <div class="quadrant-header">
-              <span class="dot dot-p2"></span>
-              <span class="quadrant-label">P2</span>
-              <span class="quadrant-title">紧急 · 不重要</span>
-              <span class="count" data-priority="P2">0</span>
-            </div>
-            <ul class="todo-list" data-priority="P2"></ul>
-            <div class="add-row">
-              <input
-                type="text"
-                placeholder="添加..."
-                data-priority="P2"
-                maxlength="80"
-              />
-            </div>
-          </section>
-
-          <section class="quadrant" data-priority="P3">
-            <div class="quadrant-header">
-              <span class="dot dot-p3"></span>
-              <span class="quadrant-label">P3</span>
-              <span class="quadrant-title">日常 · 待办</span>
-              <span class="count" data-priority="P3">0</span>
-            </div>
-            <ul class="todo-list" data-priority="P3"></ul>
-            <div class="add-row">
-              <input
-                type="text"
-                placeholder="添加..."
-                data-priority="P3"
-                maxlength="80"
-              />
-            </div>
+          <section id="tab-apps" class="tab-panel" role="tabpanel">
+            <div class="placeholder">应用 · 即将到来</div>
           </section>
         </div>
       </div>

@@ -120,8 +120,8 @@ function createNotchTrayIcon() {
 
 const COLLAPSED_WIDTH = 200;
 const COLLAPSED_HEIGHT = 32;
-const EXPANDED_WIDTH = 560;
-const EXPANDED_HEIGHT = 420;
+const EXPANDED_WIDTH = 620;
+const EXPANDED_HEIGHT = 464;
 
 let mainWindow = null;
 let tray = null;
