@@ -149,6 +149,43 @@ panel.addEventListener('click', (e) => {
   e.stopPropagation();
 });
 
+// Esc 收起面板（菜单栏会拦截顶部刘海条的点击，给收起多一条可靠路径）；
+// 焦点在输入框/速记里时，第一次 Esc 只退出输入。
+// Escape 不会原生到达页面（被浏览器层吞掉），由主进程 before-input-event 转发
+if (window.notchAPI && typeof window.notchAPI.onEscape === 'function') {
+  window.notchAPI.onEscape(() => {
+    const el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+      el.blur();
+      return;
+    }
+    if (isExpanded) setMode(false);
+  });
+}
+
+// 主进程发起的收起（窗口失焦自动收起）：只同步类与状态，不再回发 IPC
+if (window.notchAPI && typeof window.notchAPI.onCollapse === 'function') {
+  window.notchAPI.onCollapse(() => {
+    if (!isExpanded) return;
+    isExpanded = false;
+    app.classList.remove('expanded');
+    app.classList.add('collapsed');
+    stopMirror();
+  });
+}
+
+// 刘海条高度 = 菜单栏高 + 唇边（主进程按屏计算），让展开态的条也露出可点唇边
+if (window.notchAPI && typeof window.notchAPI.getMetrics === 'function') {
+  window.notchAPI
+    .getMetrics()
+    .then((m) => {
+      if (m && m.stripHeight) {
+        document.documentElement.style.setProperty('--notch-h', `${m.stripHeight}px`);
+      }
+    })
+    .catch(() => {});
+}
+
 // ============ Tab 切换 ============
 const TAB_KEY = 'notch-active-tab';
 const TABS = ['home', 'todo', 'apps'];
@@ -648,7 +685,13 @@ async function ensureAppsLoaded() {
   appsLoadState = 'loading';
   setAppsLoading(true);
   try {
-    const list = await window.notchAPI.listApps();
+    // 主进程扫盘异常时不至于永远转圈：20s 超时兜底，下次进入本 Tab 自动重试
+    const list = await Promise.race([
+      window.notchAPI.listApps(),
+      new Promise((resolve, reject) => {
+        setTimeout(() => reject(new Error('apps:list timeout')), 20000);
+      }),
+    ]);
     appsCache = Array.isArray(list) ? list : [];
     appsLoadState = 'ready';
     setAppsLoading(false);

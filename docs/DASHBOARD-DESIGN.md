@@ -173,7 +173,7 @@ box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);   /* 顶部内高光，做出"
 
 ## 7. 主进程扩展 & IPC 契约（preload 暴露，禁止渲染层直接 require）
 
-**窗口尺寸**（`main.js`）：折叠 `200×32` 不变；展开改为 **`EXPANDED_WIDTH=620, EXPANDED_HEIGHT=464`**。
+**窗口尺寸**（`main.js`）：折叠 `200 × (菜单栏高 + 18px 唇边)`，最小高 38（macOS 菜单栏/物理刘海会拦截其高度带内的点击，必须露出唇边才可点；高度经 `window:metrics` IPC 下发给渲染层写入 `--notch-h`）；展开 **`EXPANDED_WIDTH=620, EXPANDED_HEIGHT=464`**。收起路径：点唇边切换 / 窗口失焦自动收起（`blur` → `window:collapse`）/ Esc 经 `before-input-event` 转发（Escape 不会原生到达页面）。
 
 **preload.js `window.notchAPI` 新增：**
 ```

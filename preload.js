@@ -6,4 +6,7 @@ contextBridge.exposeInMainWorld('notchAPI', {
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
   listApps: () => ipcRenderer.invoke('apps:list'),
   launchApp: (p) => ipcRenderer.invoke('apps:launch', p),
+  onEscape: (cb) => ipcRenderer.on('key:escape', () => cb()),
+  onCollapse: (cb) => ipcRenderer.on('window:collapse', () => cb()),
+  getMetrics: () => ipcRenderer.invoke('window:metrics'),
 });

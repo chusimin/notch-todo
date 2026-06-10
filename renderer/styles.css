@@ -91,7 +91,7 @@ body {
 /* ============ 刘海条 ============ */
 .notch {
   width: 200px;
-  height: 32px;
+  height: var(--notch-h, 38px); /* 菜单栏高 + 唇边，主进程按屏计算后由 JS 写入 */
   background: var(--bg-base);
   border-radius: 0 0 var(--r-notch) var(--r-notch);
   display: flex;
@@ -102,8 +102,17 @@ body {
   align-self: center;
   transition:
     width var(--d-slow) var(--ease),
+    height 260ms var(--ease),
     border-radius 260ms var(--ease),
     background 200ms var(--ease);
+}
+
+/* 折叠态填满整个窗口高（= 菜单栏高 + 唇边，由主进程按屏计算）。
+   菜单栏会拦截其高度带内的点击，圆点沉到唇边里保证可见可点 */
+#app.collapsed .notch {
+  height: 100vh;
+  align-items: flex-end;
+  padding-bottom: var(--s-2);
 }
 
 #app.expanded .notch {

@@ -121,7 +121,8 @@ function createNotchTrayIcon() {
 }
 
 const COLLAPSED_WIDTH = 200;
-const COLLAPSED_HEIGHT = 32;
+const COLLAPSED_MIN_HEIGHT = 38;
+const NOTCH_LIP = 18;
 const EXPANDED_WIDTH = 620;
 const EXPANDED_HEIGHT = 464;
 
@@ -153,8 +154,8 @@ function getTargetDisplay() {
   }
 }
 
-function getCenteredBounds(width, height) {
-  const d = getTargetDisplay();
+function getCenteredBounds(width, height, display) {
+  const d = display || getTargetDisplay();
   return {
     x: Math.round(d.bounds.x + (d.bounds.width - width) / 2),
     y: d.bounds.y, // 副屏的 y 不一定是 0，可能是负数（如外接屏在主屏上方）
@@ -163,20 +164,31 @@ function getCenteredBounds(width, height) {
   };
 }
 
+// macOS 菜单栏会拦截其高度带内的所有鼠标点击（即使窗口绘制在其上方），
+// 刘海屏机型菜单栏高约 37pt，折叠态必须在菜单栏下方露出一段"唇边"才可点击。
+function getMenuBarHeight(display) {
+  return Math.max(0, display.workArea.y - display.bounds.y);
+}
+
+function getCollapsedHeight(display) {
+  return Math.max(COLLAPSED_MIN_HEIGHT, getMenuBarHeight(display) + NOTCH_LIP);
+}
+
 function applyMode(mode, animate) {
   if (!mainWindow) return;
+  const d = getTargetDisplay();
   const width = mode === 'expanded' ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
-  const height = mode === 'expanded' ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
-  mainWindow.setBounds(getCenteredBounds(width, height), animate);
+  const height = mode === 'expanded' ? EXPANDED_HEIGHT : getCollapsedHeight(d);
+  mainWindow.setBounds(getCenteredBounds(width, height, d), animate);
   currentMode = mode;
 }
 
 function createWindow() {
-  const initial = getCenteredBounds(COLLAPSED_WIDTH, COLLAPSED_HEIGHT);
+  const initial = getCenteredBounds(COLLAPSED_WIDTH, getCollapsedHeight(getTargetDisplay()));
 
   mainWindow = new BrowserWindow({
-    width: COLLAPSED_WIDTH,
-    height: COLLAPSED_HEIGHT,
+    width: initial.width,
+    height: initial.height,
     x: initial.x,
     y: initial.y,
     frame: false,
@@ -200,6 +212,22 @@ function createWindow() {
 
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  // Escape 在到达页面前会被 Chromium 浏览器层吞掉（实测 document keydown 收不到），
+  // 用 before-input-event 在分发前拦截并转发给渲染层处理（退出输入 / 收起面板）
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'Escape') {
+      mainWindow.webContents.send('key:escape');
+    }
+  });
+
+  // 点击面板以外的任何地方（窗口失焦）→ 自动收起，HUD 的自然行为
+  mainWindow.on('blur', () => {
+    if (currentMode === 'expanded') {
+      applyMode('collapsed', true);
+      mainWindow.webContents.send('window:collapse');
+    }
+  });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -310,6 +338,11 @@ ipcMain.handle('window:set-mode', (event, mode) => {
   applyMode(mode, true);
 });
 
+ipcMain.handle('window:metrics', () => {
+  const d = getTargetDisplay();
+  return { stripHeight: getCollapsedHeight(d) };
+});
+
 // 快捷链接：URL 走外部浏览器（仅 http/https），本地路径走系统打开（仅绝对路径）
 ipcMain.handle('shell:openExternal', (event, url) => {
   if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
@@ -334,6 +367,59 @@ const APP_DIRS = [
 
 let appsCache = null; // 首次扫盘较慢，结果缓存复用
 
+// 图标直接从 .app/Contents/Resources/*.icns 提取内嵌 PNG。
+// 不用 app.getFileIcon：它在部分 .app 上会触发 Electron 内部 FATAL Check 崩溃，
+// C++ 级断言 try/catch 接不住，会把整个 apps:list 打死。
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+// icns 内 PNG 块按"贴近 48px 网格展示"优先：128 → 256 → 64@2x …
+const ICNS_PREF = ['ic07', 'ic12', 'ic08', 'ic11', 'ic13', 'ic09', 'ic14', 'ic05', 'ic04'];
+
+function extractPngFromIcns(buf) {
+  if (buf.length < 8 || buf.toString('ascii', 0, 4) !== 'icns') return null;
+  const candidates = [];
+  let off = 8;
+  while (off + 8 <= buf.length) {
+    const type = buf.toString('ascii', off, off + 4);
+    const len = buf.readUInt32BE(off + 4);
+    if (len < 8 || off + len > buf.length) break;
+    const data = buf.subarray(off + 8, off + len);
+    if (data.length > 8 && data.subarray(0, 4).equals(PNG_SIG)) {
+      candidates.push({ type, data });
+    }
+    off += len;
+  }
+  if (!candidates.length) return null; // 老式 RLE 图标 → 交给渲染层首字母兜底
+  candidates.sort((a, b) => {
+    const ia = ICNS_PREF.indexOf(a.type);
+    const ib = ICNS_PREF.indexOf(b.type);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+  return candidates[0].data;
+}
+
+async function readAppIcon(appPath) {
+  try {
+    const resDir = path.join(appPath, 'Contents', 'Resources');
+    const files = await fs.promises.readdir(resDir);
+    const icns = files.filter((f) => f.toLowerCase().endsWith('.icns'));
+    if (!icns.length) return null;
+    // 优先 AppIcon.icns，其次名字含 app/icon 的，避免选中文档类型图标
+    const score = (n) => {
+      const s = n.toLowerCase();
+      if (s === 'appicon.icns') return 0;
+      if (s.includes('app')) return 1;
+      if (s.includes('icon')) return 2;
+      return 3;
+    };
+    icns.sort((a, b) => score(a) - score(b) || a.length - b.length);
+    const buf = await fs.promises.readFile(path.join(resDir, icns[0]));
+    const png = extractPngFromIcns(buf);
+    return png ? `data:image/png;base64,${png.toString('base64')}` : null;
+  } catch (e) {
+    return null; // 单个应用读不到图标不影响整体
+  }
+}
+
 async function scanApps() {
   const seen = new Set(); // 按应用名去重，同名保留首个
   const result = [];
@@ -350,17 +436,15 @@ async function scanApps() {
       const name = entry.slice(0, -4);
       if (seen.has(name)) continue;
       seen.add(name);
-      const fullPath = path.join(dir, entry);
-      let icon = null;
-      try {
-        const img = await app.getFileIcon(fullPath, { size: 'large' });
-        icon = img.toDataURL();
-      } catch (e) {
-        icon = null; // 单个图标失败不影响整体
-      }
-      result.push({ name, path: fullPath, icon });
+      result.push({ name, path: path.join(dir, entry), icon: null });
     }
   }
+
+  await Promise.all(
+    result.map(async (item) => {
+      item.icon = await readAppIcon(item.path);
+    })
+  );
 
   result.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
   return result;
