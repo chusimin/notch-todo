@@ -45,3 +45,4 @@ coverage/
 # 临时文件
 *.tmp
 *.swp
+.gstack/

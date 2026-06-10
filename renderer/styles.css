@@ -59,6 +59,11 @@
   box-sizing: border-box;
 }
 
+/* hidden 属性优先于任何 display（修复 .apps-* 用 [hidden] 切换被 display 覆盖） */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
