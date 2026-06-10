@@ -216,3 +216,56 @@ notch-active-tab       // 'home' | 'todo' | 'apps'（记住上次所在 Tab）
 - 首页：时钟实时跳秒等宽；速记自动保存；快捷链接可增删并能打开；镜子点击才开、离开即关。
 - 应用：能列出本机应用并显示真实图标；搜索过滤；点击启动；收藏置顶。
 - 全程纯单色（除 P0–P3 点与 app 图标）；无硬编码颜色；无 require('electron') 泄漏到渲染层。
+
+---
+
+## 10. Round 2 改版规格（2026-06-10 用户反馈，与上文冲突时以本节为准）
+
+### 10.1 Per-tab 窗口尺寸（main.js）
+展开尺寸不再唯一，按当前 Tab 取值（宽超出屏幕时 clamp 到 `workArea.width - 24`）：
+```
+TAB_SIZES = {
+  home: { width: 980,  panelHeight: 196 },   // 横向 HUD 条，对齐 Nook X 参考
+  todo: { width: 1080, panelHeight: 300 },   // 四列并排
+  apps: { width: 1120, panelHeight: 540 },   // 大网格
+}
+窗口总高 = 刘海条高(getCollapsedHeight) + panelHeight + 面板上下 padding(约 2×16)
+```
+- 新增 IPC `window:set-tab(tab)`：渲染层切 Tab 时调用；主进程记录 `currentTab`（校验合法值，默认 home），若处于展开态则 `applyMode('expanded', true)` 平滑变尺寸（仍贴顶居中）。渲染层启动时也同步一次上次 Tab。
+- 渲染层 `.panel` 宽与展开态 `.notch` 宽改为 `100%` / `100vw`，不再写死 620。
+- **多屏锚定（真机踩坑后定死）**：模式切换 / Tab 变形 / 失焦收起一律锚定**窗口当前所在屏**（`screen.getDisplayMatching(win.getBounds())`），绝不跟随光标——否则失焦瞬间刘海会瞬移到光标所在的另一块屏。只有"召唤"类动作（启动初始定位 / 托盘"重新居中" / 显示）才用光标所在屏（`getTargetDisplay()`）。跨屏移动一律瞬时 `setBounds`（动画跨屏被打断会留下中间尺寸残窗）。
+
+### 10.2 顶栏：Tab 移到左上
+`.topbar` = [brand 方钮 + 「刘海坞」] [tabs 分段控件（紧贴 brand，左对齐）] [flex:1 空白] [collapse 按钮]。滑动胶囊机制保留。
+
+### 10.3 首页改横向 bento（对齐 Nook X 参考图）
+panel 内单行横排 grid：`grid-template-columns: 220px 252px 1fr 132px`（时钟 | 快捷应用 | 速记 | 镜子），gap var(--s-3)，全部 .tile 材质，高度填满。
+- **时钟**：日期行改小胶囊（surface-1 底、**--p3 绿色**文本 11px，如「周三 · 6/10」）；时间 44px tabular：小时 --text-1、**分钟 --p1 琥珀**（对齐参考图点缀，仅复用既有 token，不新增色）；秒 --text-3 小号。
+- **快捷应用**（替代原"快捷链接"模块，后者整体删除——含表单/样式/openExternal·openPath 的首页调用，storage key notch-quicklinks 废弃）：2×3 网格，数据 = `notch-app-favorites`（与应用 Tab 星标同源）。真实图标原样（同 10.5，不包壳）约 40px + 无名称或 9px 名称，点击 `launchApp`。空态文案「去“应用”页给常用加星 →」，点击与「+」按钮一样跳 apps Tab。首页激活时调用与应用 Tab 共享的 `ensureAppsLoaded()`（主进程已有在途去重）。
+- **速记**：保留，占 1fr。
+- **镜子**：圆形 + 「点按开启」保留，开启修复见 10.6。
+
+### 10.4 待办 Tab：四列并排
+`.sections` 改 `grid-template-columns: repeat(4, 1fr); grid-template-rows: 1fr;`，P0–P3 四竖列（列内：header / 列表 / 输入框）。交互与数据逻辑零改动。
+
+### 10.5 应用 Tab：原生图标原样 + 拖拽排序
+- **图标去壳**：删除 .app-icon 的 squircle 底/inset 高光/overflow 裁切（这是"图标像被重新设计"的原因），`<img>` 52px `object-fit: contain` 直接展示；icon:null 的首字母兜底样式保留。
+- **拖拽排序**：「全部应用」网格内 HTML5 DnD；松手重排并存 `localStorage('notch-app-order')`=[path,...]；renderApps 按保存顺序排，新应用（不在表内）按 zh 排序追加尾部；搜索过滤态禁用拖拽；「常用」行不参与。
+- 网格 `repeat(auto-fill, minmax(84px,1fr))`。
+
+### 10.6 镜子修复（dev 下无法开启的根因）
+macOS 渲染层 getUserMedia **不会**自动弹 TCC 授权，必须主进程申请：
+- main.js：electron 解构补 `systemPreferences`；新增
+  `ipcMain.handle('media:camera', async () => { if (process.platform !== 'darwin') return true; if (systemPreferences.getMediaAccessStatus('camera') === 'granted') return true; return systemPreferences.askForMediaAccess('camera'); })`
+- preload 暴露 `ensureCamera()`；渲染层 startMirror 先 `await ensureCamera()`，false → mirror-hint 显示「无法访问摄像头 · 去系统设置授权」。
+- 隐私规则不变：点按才开、离开首页/收起即 stop。
+
+### 10.7 质感微调
+- `--surface-1` 0.045 → 0.055（tile 与纯黑底层次更清晰）。
+- 彩色仅限：P0–P3 token、app 原生图标、时钟日期胶囊(--p3)与分钟(--p1)。其余仍纯单色。
+
+### 10.8 Round 2 验收
+- 三 Tab 窗口尺寸各异且切换平滑、始终贴顶居中；Tab 在左上角。
+- 首页横向四模块对齐参考；快捷应用与应用页星标联动、点击可启动；镜子点按能弹系统授权并出画面。
+- 待办四列并排，旧数据/交互如常。
+- 应用页图标原生原样、可拖拽排序且持久化、搜索时禁拖。

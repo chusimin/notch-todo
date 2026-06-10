@@ -208,16 +208,27 @@ function setActiveTab(name) {
   activeTab = name;
   // 离开首页即释放摄像头（隐私优先，禁止常驻）
   if (name !== 'home') stopMirror();
-  // 进入应用 Tab 才懒加载应用列表
-  if (name === 'apps') ensureAppsLoaded();
+  // 应用 Tab 需要列表；首页的快捷应用模块同样需要图标数据（主进程有缓存与在途去重）
+  if (name === 'apps' || name === 'home') ensureAppsLoaded();
+  // 通知主进程按 Tab 调整窗口尺寸（展开态下平滑变形，仍贴顶居中）
+  if (window.notchAPI && typeof window.notchAPI.setTab === 'function') {
+    window.notchAPI.setTab(name).catch(() => {});
+  }
   tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   tabPanels.forEach((p) => p.classList.toggle('active', p.id === `tab-${name}`));
+  // 窗口宽度此时可能正在动画变化，双帧后再校准一次胶囊位置
   positionIndicator();
+  requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
   try {
     localStorage.setItem(TAB_KEY, name);
   } catch (e) {
     // ignore quota errors
   }
+}
+
+// 胶囊滑动结束后兜底再校准一次（窗口变形期间布局可能回流）
+if (tabIndicator) {
+  tabIndicator.addEventListener('transitionend', positionIndicator);
 }
 
 tabButtons.forEach((btn) => {
@@ -306,7 +317,8 @@ PRIORITIES.forEach((priority) => {
 // ============ 首页 · 时钟·日期 ============
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const clockDateEl = document.getElementById('clock-date');
-const clockHmEl = document.getElementById('clock-hm');
+const clockHEl = document.getElementById('clock-h');
+const clockMEl = document.getElementById('clock-m');
 const clockSsEl = document.getElementById('clock-ss');
 
 function pad2(n) {
@@ -314,13 +326,15 @@ function pad2(n) {
 }
 
 function tickClock() {
-  if (!clockHmEl) return;
+  if (!clockHEl || !clockMEl) return;
   const now = new Date();
-  const hm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-  if (clockHmEl.textContent !== hm) clockHmEl.textContent = hm;
+  const h = pad2(now.getHours());
+  const m = pad2(now.getMinutes());
+  if (clockHEl.textContent !== h) clockHEl.textContent = h;
+  if (clockMEl.textContent !== m) clockMEl.textContent = m;
   if (clockSsEl) clockSsEl.textContent = pad2(now.getSeconds());
   if (clockDateEl) {
-    const dateStr = `${WEEKDAYS[now.getDay()]} · ${now.getMonth() + 1} 月 ${now.getDate()} 日`;
+    const dateStr = `${WEEKDAYS[now.getDay()]} · ${now.getMonth() + 1}/${now.getDate()}`;
     if (clockDateEl.textContent !== dateStr) clockDateEl.textContent = dateStr;
   }
 }
@@ -350,159 +364,6 @@ if (noteInput) {
     }, 300);
   });
 }
-
-// ============ 首页 · 快捷链接 ============
-const LINKS_KEY = 'notch-quicklinks';
-const linksGrid = document.getElementById('links-grid');
-const linkAddBtn = document.getElementById('link-add-btn');
-const linkForm = document.getElementById('link-form');
-const linkNameInput = document.getElementById('link-name');
-const linkTargetInput = document.getElementById('link-target');
-
-function loadLinks() {
-  try {
-    const raw = localStorage.getItem(LINKS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (l) => l && typeof l.target === 'string' && typeof l.name === 'string'
-    );
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveLinks(list) {
-  try {
-    localStorage.setItem(LINKS_KEY, JSON.stringify(list));
-  } catch (e) {
-    // ignore quota errors
-  }
-}
-
-let links = loadLinks();
-
-function isHttpUrl(s) {
-  return /^https?:\/\//i.test(s);
-}
-
-const globeSvg =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4a12 12 0 0 1 0 16 12 12 0 0 1 0-16z"/></svg>';
-
-function linkGlyph(link) {
-  if (isHttpUrl(link.target)) return globeSvg;
-  const ch = (link.name || link.target).trim().charAt(0) || '·';
-  return `<span class="link-glyph">${escapeHtml(ch)}</span>`;
-}
-
-function renderLinks() {
-  if (!linksGrid) return;
-  if (links.length === 0) {
-    linksGrid.innerHTML = '<div class="links-empty">点 + 添加常用链接</div>';
-    return;
-  }
-  linksGrid.innerHTML = links
-    .map((link) => {
-      return `
-        <div class="link-item" data-id="${link.id}">
-          <button class="link-btn" data-action="open" title="${escapeHtml(link.name)}">${linkGlyph(link)}</button>
-          <button class="link-del" data-action="del" aria-label="删除">×</button>
-        </div>
-      `;
-    })
-    .join('');
-}
-
-function openLink(link) {
-  if (!link || !window.notchAPI) return;
-  if (isHttpUrl(link.target)) {
-    if (typeof window.notchAPI.openExternal === 'function') {
-      window.notchAPI.openExternal(link.target).catch(() => {});
-    }
-  } else if (typeof window.notchAPI.openPath === 'function') {
-    window.notchAPI.openPath(link.target).catch(() => {});
-  }
-}
-
-function addLink(name, target) {
-  const t = target.trim();
-  if (!t) return false;
-  const n = name.trim() || t;
-  links.push({ id: generateId(), name: n, target: t });
-  saveLinks(links);
-  renderLinks();
-  return true;
-}
-
-function deleteLink(id) {
-  links = links.filter((l) => l.id !== id);
-  saveLinks(links);
-  renderLinks();
-}
-
-function openLinkForm() {
-  if (!linkForm) return;
-  linkForm.classList.add('open');
-  if (linkNameInput) linkNameInput.focus();
-}
-
-function closeLinkForm() {
-  if (!linkForm) return;
-  linkForm.classList.remove('open');
-  if (linkNameInput) linkNameInput.value = '';
-  if (linkTargetInput) linkTargetInput.value = '';
-}
-
-if (linkAddBtn) {
-  linkAddBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (linkForm && linkForm.classList.contains('open')) {
-      closeLinkForm();
-    } else {
-      openLinkForm();
-    }
-  });
-}
-
-if (linkForm) {
-  linkForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const ok = addLink(
-      linkNameInput ? linkNameInput.value : '',
-      linkTargetInput ? linkTargetInput.value : ''
-    );
-    if (ok) closeLinkForm();
-  });
-  [linkNameInput, linkTargetInput].forEach((inp) => {
-    if (!inp) return;
-    inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        closeLinkForm();
-      }
-    });
-  });
-}
-
-if (linksGrid) {
-  linksGrid.addEventListener('click', (e) => {
-    const target = e.target.closest('[data-action]');
-    if (!target) return;
-    const item = target.closest('.link-item');
-    if (!item) return;
-    const id = item.dataset.id;
-    const action = target.dataset.action;
-    if (action === 'open') {
-      const link = links.find((l) => l.id === id);
-      openLink(link);
-    } else if (action === 'del') {
-      deleteLink(id);
-    }
-  });
-}
-
-renderLinks();
 
 // ============ 首页 · 镜子（摄像头，隐私优先） ============
 const homeMirror = document.querySelector('.home-mirror');
@@ -537,6 +398,14 @@ async function startMirror() {
   if (mirrorStarting || mirrorStream) return;
   mirrorStarting = true;
   try {
+    // macOS 渲染层 getUserMedia 不会自动弹 TCC 授权，先经主进程申请摄像头权限
+    if (window.notchAPI && typeof window.notchAPI.ensureCamera === 'function') {
+      const granted = await window.notchAPI.ensureCamera();
+      if (!granted) {
+        if (mirrorHint) mirrorHint.textContent = '无法访问摄像头 · 去系统设置授权';
+        return;
+      }
+    }
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'user' },
       audio: false,
@@ -607,6 +476,50 @@ function saveAppFavorites(list) {
 
 let appFavorites = loadAppFavorites();
 
+// 自定义排序：[path,...]，渲染按此序，新应用按 zh 序追加尾部
+const APP_ORDER_KEY = 'notch-app-order';
+
+function loadAppOrder() {
+  try {
+    const raw = localStorage.getItem(APP_ORDER_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => typeof p === 'string');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveAppOrder(list) {
+  try {
+    localStorage.setItem(APP_ORDER_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore quota errors
+  }
+}
+
+let appOrder = loadAppOrder();
+
+// cache 本身已按 zh 排序：先按保存顺序输出，未入表的新应用按原序（zh）追加
+function orderedApps() {
+  if (!appsCache) return [];
+  if (!appOrder.length) return appsCache;
+  const byPath = new Map(appsCache.map((a) => [a.path, a]));
+  const out = [];
+  for (const p of appOrder) {
+    const a = byPath.get(p);
+    if (a) {
+      out.push(a);
+      byPath.delete(p);
+    }
+  }
+  for (const a of appsCache) {
+    if (byPath.has(a.path)) out.push(a);
+  }
+  return out;
+}
+
 const starOutlineSvg =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l2.35 4.76 5.25.76-3.8 3.7.9 5.23L12 16.9l-4.7 2.47.9-5.23-3.8-3.7 5.25-.76z"/></svg>';
 const starFilledSvg =
@@ -617,37 +530,41 @@ function appGlyph(name) {
   return `<span class="app-glyph">${escapeHtml(ch)}</span>`;
 }
 
-function appItemHtml(appInfo, faved) {
+function appItemHtml(appInfo, faved, canDrag) {
   const safeName = escapeHtml(appInfo.name);
   const iconInner = appInfo.icon
     ? `<img src="${escapeHtml(appInfo.icon)}" alt="" draggable="false" />`
     : appGlyph(appInfo.name);
+  const iconClass = appInfo.icon ? '' : ' fallback';
   const favClass = faved ? ' faved' : '';
   const star = faved ? starFilledSvg : starOutlineSvg;
   const favLabel = faved ? '取消收藏' : '收藏';
+  const dragAttr = canDrag ? ' draggable="true"' : '';
   return `
-    <div class="app-item" data-path="${escapeHtml(appInfo.path)}" data-action="launch" title="${safeName}">
+    <div class="app-item" data-path="${escapeHtml(appInfo.path)}" data-action="launch" title="${safeName}"${dragAttr}>
       <button class="app-fav-toggle${favClass}" data-action="fav" aria-label="${favLabel}">${star}</button>
-      <div class="app-icon">${iconInner}</div>
+      <div class="app-icon${iconClass}">${iconInner}</div>
       <span class="app-name">${safeName}</span>
     </div>
   `;
 }
 
 function renderApps() {
+  renderHomeFavs(); // 首页快捷应用与收藏/缓存同步渲染
   if (appsLoadState !== 'ready' || !appsCache) return;
   const favSet = new Set(appFavorites);
   const term = appsSearchTerm.trim().toLowerCase();
   const filtering = term.length > 0;
+  const base = orderedApps();
 
-  // 全部应用（过滤后）
+  // 全部应用（自定义顺序，过滤后；搜索态禁用拖拽）
   const matched = filtering
-    ? appsCache.filter((a) => a.name.toLowerCase().includes(term))
-    : appsCache;
+    ? base.filter((a) => a.name.toLowerCase().includes(term))
+    : base;
 
   if (appsAllGrid) {
     appsAllGrid.innerHTML = matched
-      .map((a) => appItemHtml(a, favSet.has(a.path)))
+      .map((a) => appItemHtml(a, favSet.has(a.path), !filtering))
       .join('');
   }
 
@@ -743,5 +660,131 @@ if (appsSearchInput) {
   });
 }
 
+// ============ 应用 · 拖拽排序（仅「全部应用」网格，搜索态禁用） ============
+let dragPath = null;
+
+function isAppsFiltering() {
+  return appsSearchTerm.trim().length > 0;
+}
+
+function clearDragHints() {
+  if (!appsAllGrid) return;
+  appsAllGrid.querySelectorAll('.drag-over').forEach((el) => {
+    el.classList.remove('drag-over');
+  });
+}
+
+if (appsAllGrid) {
+  appsAllGrid.addEventListener('dragstart', (e) => {
+    if (isAppsFiltering()) {
+      e.preventDefault();
+      return;
+    }
+    const item = e.target.closest('.app-item');
+    if (!item) return;
+    dragPath = item.dataset.path;
+    item.classList.add('dragging');
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      try {
+        e.dataTransfer.setData('text/plain', dragPath);
+      } catch (err) {
+        // ignore
+      }
+    }
+  });
+
+  appsAllGrid.addEventListener('dragover', (e) => {
+    if (!dragPath || isAppsFiltering()) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    const item = e.target.closest('.app-item');
+    clearDragHints();
+    if (item && item.dataset.path !== dragPath) item.classList.add('drag-over');
+  });
+
+  appsAllGrid.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!dragPath || isAppsFiltering()) return;
+    const target = e.target.closest('.app-item');
+    if (target && target.dataset.path !== dragPath) {
+      const paths = orderedApps().map((a) => a.path);
+      const from = paths.indexOf(dragPath);
+      const to = paths.indexOf(target.dataset.path);
+      if (from !== -1 && to !== -1) {
+        paths.splice(from, 1);
+        // 从前往后拖放到目标之后；从后往前拖放到目标之前（贴近手感）
+        const insertAt = paths.indexOf(target.dataset.path) + (from < to ? 1 : 0);
+        paths.splice(insertAt, 0, dragPath);
+        appOrder = paths;
+        saveAppOrder(appOrder);
+        renderApps();
+      }
+    }
+    // 重排后网格已重建，源节点已脱离文档，dragend 不会再冒泡到网格：就地清理
+    dragPath = null;
+    clearDragHints();
+  });
+
+  appsAllGrid.addEventListener('dragend', () => {
+    dragPath = null;
+    clearDragHints();
+    appsAllGrid.querySelectorAll('.dragging').forEach((el) => {
+      el.classList.remove('dragging');
+    });
+  });
+}
+
+// ============ 首页 · 快捷应用（与应用 Tab 收藏同源） ============
+const quickappsGrid = document.getElementById('quickapps-grid');
+const quickappsAddBtn = document.getElementById('quickapps-add-btn');
+const QUICKAPPS_MAX = 6; // 2×3
+
+function quickAppName(p) {
+  const base = (p.split('/').pop() || '').replace(/\.app$/i, '');
+  return base || p;
+}
+
+function renderHomeFavs() {
+  if (!quickappsGrid) return;
+  const favs = appFavorites.slice(0, QUICKAPPS_MAX);
+  if (!favs.length) {
+    quickappsGrid.innerHTML =
+      '<button class="quickapps-empty" type="button" data-action="goto-apps">去“应用”页给常用加星 →</button>';
+    return;
+  }
+  quickappsGrid.innerHTML = favs
+    .map((p) => {
+      const info = appsCache ? appsCache.find((a) => a.path === p) : null;
+      const name = info ? info.name : quickAppName(p);
+      const inner =
+        info && info.icon
+          ? `<img src="${escapeHtml(info.icon)}" alt="" draggable="false" />`
+          : `<span class="quickapp-glyph">${escapeHtml(name.trim().charAt(0) || '·')}</span>`;
+      return `<button class="quickapp-item" type="button" data-path="${escapeHtml(p)}" title="${escapeHtml(name)}">${inner}</button>`;
+    })
+    .join('');
+}
+
+if (quickappsGrid) {
+  quickappsGrid.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.target.closest('[data-action="goto-apps"]')) {
+      setActiveTab('apps');
+      return;
+    }
+    const item = e.target.closest('.quickapp-item');
+    if (item) launchApp(item.dataset.path);
+  });
+}
+
+if (quickappsAddBtn) {
+  quickappsAddBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setActiveTab('apps');
+  });
+}
+
 renderAll();
+renderApps(); // 首屏先画快捷应用（空态/字母兜底），图标随 ensureAppsLoaded 就绪后刷新
 initTab();

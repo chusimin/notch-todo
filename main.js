@@ -7,6 +7,7 @@ const {
   Menu,
   nativeImage,
   shell,
+  systemPreferences,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -123,12 +124,20 @@ function createNotchTrayIcon() {
 const COLLAPSED_WIDTH = 200;
 const COLLAPSED_MIN_HEIGHT = 38;
 const NOTCH_LIP = 18;
-const EXPANDED_WIDTH = 620;
-const EXPANDED_HEIGHT = 464;
+
+// Per-tab 展开尺寸：窗口总高 = 刘海条高 + panelHeight + 面板上下 padding
+const TAB_SIZES = {
+  home: { width: 980, panelHeight: 196 }, // 横向 HUD 条
+  todo: { width: 1080, panelHeight: 300 }, // 四列并排
+  apps: { width: 1120, panelHeight: 540 }, // 大网格
+};
+const PANEL_PADDING_Y = 16; // 与渲染层 .panel padding（--s-4）保持一致
+const SCREEN_MARGIN = 24; // 宽度超屏时两侧保留的安全边
 
 let mainWindow = null;
 let tray = null;
 let currentMode = 'collapsed';
+let currentTab = 'home';
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -154,6 +163,17 @@ function getTargetDisplay() {
   }
 }
 
+// 窗口当前所在屏：模式切换 / Tab 变形必须锚定在这块屏上。
+// 若跟随光标（getTargetDisplay），失焦收起瞬间会把刘海"瞬移"到光标所在的另一块屏。
+function getWindowDisplay() {
+  try {
+    if (mainWindow) return screen.getDisplayMatching(mainWindow.getBounds());
+  } catch (e) {
+    // fallthrough
+  }
+  return getTargetDisplay();
+}
+
 function getCenteredBounds(width, height, display) {
   const d = display || getTargetDisplay();
   return {
@@ -174,12 +194,31 @@ function getCollapsedHeight(display) {
   return Math.max(COLLAPSED_MIN_HEIGHT, getMenuBarHeight(display) + NOTCH_LIP);
 }
 
-function applyMode(mode, animate) {
+// 展开尺寸按当前 Tab 取值；宽度超出屏幕时 clamp 到工作区内
+function getExpandedSize(display) {
+  const size = TAB_SIZES[currentTab] || TAB_SIZES.home;
+  return {
+    width: Math.min(size.width, display.workArea.width - SCREEN_MARGIN),
+    height: getCollapsedHeight(display) + size.panelHeight + PANEL_PADDING_Y * 2,
+  };
+}
+
+// display 不传时锚定窗口当前所在屏；只有"召唤"类动作（启动/重新居中/显示）才传光标屏。
+// 跨屏移动一律瞬时（动画 setBounds 跨屏被打断会留下中间尺寸的残窗）。
+function applyMode(mode, animate, display) {
   if (!mainWindow) return;
-  const d = getTargetDisplay();
-  const width = mode === 'expanded' ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
-  const height = mode === 'expanded' ? EXPANDED_HEIGHT : getCollapsedHeight(d);
-  mainWindow.setBounds(getCenteredBounds(width, height, d), animate);
+  const current = getWindowDisplay();
+  const d = display || current;
+  let width;
+  let height;
+  if (mode === 'expanded') {
+    ({ width, height } = getExpandedSize(d));
+  } else {
+    width = COLLAPSED_WIDTH;
+    height = getCollapsedHeight(d);
+  }
+  const crossDisplay = d.id !== current.id;
+  mainWindow.setBounds(getCenteredBounds(width, height, d), animate && !crossDisplay);
   currentMode = mode;
 }
 
@@ -249,7 +288,7 @@ function toggleVisibility() {
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
-    applyMode(currentMode, false); // 显示前先回到鼠标所在屏顶部
+    applyMode(currentMode, false, getTargetDisplay()); // 显示前先回到鼠标所在屏顶部
     mainWindow.show();
   }
   refreshTrayMenu();
@@ -284,7 +323,7 @@ function refreshTrayMenu() {
     },
     {
       label: '重新居中',
-      click: () => applyMode(currentMode, false),
+      click: () => applyMode(currentMode, false, getTargetDisplay()),
     },
     { type: 'separator' },
     {
@@ -341,6 +380,19 @@ ipcMain.handle('window:set-mode', (event, mode) => {
 ipcMain.handle('window:metrics', () => {
   const d = getTargetDisplay();
   return { stripHeight: getCollapsedHeight(d) };
+});
+
+// 渲染层切 Tab 时同步：记录当前 Tab，展开态下平滑变形到该 Tab 的尺寸（仍贴顶居中）
+ipcMain.handle('window:set-tab', (event, tab) => {
+  currentTab = Object.prototype.hasOwnProperty.call(TAB_SIZES, tab) ? tab : 'home';
+  if (currentMode === 'expanded') applyMode('expanded', true);
+});
+
+// macOS 渲染层 getUserMedia 不会自动弹 TCC 授权，必须由主进程申请摄像头权限
+ipcMain.handle('media:camera', async () => {
+  if (process.platform !== 'darwin') return true;
+  if (systemPreferences.getMediaAccessStatus('camera') === 'granted') return true;
+  return systemPreferences.askForMediaAccess('camera');
 });
 
 // 快捷链接：URL 走外部浏览器（仅 http/https），本地路径走系统打开（仅绝对路径）

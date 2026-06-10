@@ -1,7 +1,7 @@
 :root {
   /* ============ 颜色 · 纯单色体系 ============ */
   --bg-base: #000000;
-  --surface-1: rgba(255, 255, 255, 0.045);
+  --surface-1: rgba(255, 255, 255, 0.055);
   --surface-2: rgba(255, 255, 255, 0.07);
   --surface-3: rgba(255, 255, 255, 0.10);
   --hairline: rgba(255, 255, 255, 0.08);
@@ -116,7 +116,7 @@ body {
 }
 
 #app.expanded .notch {
-  width: 620px;
+  width: 100vw; /* 展开宽度由主进程按 Tab 决定，渲染层跟随窗口 */
   border-radius: 0;
 }
 
@@ -152,7 +152,7 @@ body {
 
 /* ============ 展开面板 ============ */
 .panel {
-  width: 620px;
+  width: 100%; /* 跟随窗口宽（per-tab 尺寸由主进程 setBounds 决定） */
   flex: 1;
   min-height: 0;
   background: var(--bg-base);
@@ -182,12 +182,13 @@ body {
 }
 
 /* ============ 顶栏 ============ */
+/* [brand][tabs 紧贴左对齐][空白][collapse 居右] */
 .topbar {
   height: 42px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--s-3);
 }
 
@@ -289,6 +290,7 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .collapse-btn {
@@ -356,30 +358,39 @@ body {
   color: var(--text-3);
 }
 
-/* ============ 首页 · bento ============ */
+/* ============ 首页 · 横向 bento（时钟 | 快捷应用 | 速记 | 镜子） ============ */
 .home-bento {
   display: grid;
-  grid-template-columns: 1.45fr 1fr;
-  grid-template-rows: 100px 1fr;
+  grid-template-columns: 220px 252px 1fr 132px;
   gap: var(--s-3);
   height: 100%;
 }
 
-/* 时钟·日期 —— 整行 */
+/* 时钟·日期 */
 .home-clock {
-  grid-column: 1 / -1;
   padding: var(--s-3) var(--s-4);
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
-  gap: 2px;
+  gap: var(--s-2);
+  min-width: 0;
 }
 
+/* 日期小胶囊（彩色例外：复用 --p3 token） */
 .clock-date {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-pill);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.4px;
-  color: var(--text-3);
+  color: var(--p3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .clock-time {
@@ -389,12 +400,17 @@ body {
 }
 
 .clock-hm {
-  font-size: 52px;
+  font-size: 44px;
   font-weight: 500;
-  letter-spacing: -2px;
+  letter-spacing: -1.5px;
   line-height: 1;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
+}
+
+/* 分钟点缀（彩色例外：复用 --p1 token） */
+.clock-m {
+  color: var(--p1);
 }
 
 .clock-ss {
@@ -406,12 +422,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 速记 —— 左下，填满 */
+/* 速记 —— 占 1fr，填满 */
 .home-note {
-  grid-column: 1;
-  grid-row: 2;
   padding: var(--s-3);
   display: flex;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -454,24 +469,6 @@ body {
   background: var(--scrollbar-thumb-hover);
 }
 
-/* 右侧窄栏：快捷链接 + 镜子 */
-.home-side {
-  grid-column: 2;
-  grid-row: 2;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  min-height: 0;
-}
-
-.home-links {
-  flex: 1;
-  padding: var(--s-3);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
 .tile-head {
   display: flex;
   align-items: center;
@@ -488,8 +485,16 @@ body {
   color: var(--text-3);
 }
 
-.link-add,
-.link-confirm {
+/* 快捷应用 —— 收藏（notch-app-favorites）同源，点击启动 */
+.home-quickapps {
+  padding: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.quickapps-add {
   width: 22px;
   height: 22px;
   flex-shrink: 0;
@@ -505,174 +510,101 @@ body {
     color var(--d-base) var(--ease);
 }
 
-.link-add:hover,
-.link-confirm:hover {
+.quickapps-add:hover {
   background: var(--surface-2);
   color: var(--text-1);
 }
 
-.link-add svg,
-.link-confirm svg {
+.quickapps-add svg {
   width: 13px;
   height: 13px;
 }
 
-.links-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  align-content: flex-start;
+.quickapps-grid {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: var(--s-1);
 }
 
-.links-grid::-webkit-scrollbar {
-  width: 3px;
-}
-
-.links-grid::-webkit-scrollbar-track {
+.quickapp-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
   background: transparent;
+  border: none;
+  border-radius: var(--r-squircle);
+  cursor: pointer;
+  transition: background var(--d-base) var(--ease);
 }
 
-.links-grid::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 2px;
+.quickapp-item:hover {
+  background: var(--surface-1);
 }
 
-.links-grid::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-}
-
-.links-empty {
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.2px;
-  color: var(--text-4);
-  padding: 2px 1px;
-}
-
-.link-item {
-  position: relative;
+/* 真实图标原样展示，不包壳 */
+.quickapp-item img {
   width: 40px;
   height: 40px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
-.link-btn {
+.quickapp-glyph {
   width: 40px;
   height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--surface-1);
-  border: 1px solid var(--hairline);
   border-radius: var(--r-squircle);
   box-shadow: inset 0 1px 0 var(--squircle-highlight);
   color: var(--text-2);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
-  cursor: pointer;
-  overflow: hidden;
-  transition:
-    background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
-}
-
-.link-btn:hover {
-  background: var(--surface-2);
-  color: var(--text-1);
-}
-
-.link-btn svg {
-  width: 17px;
-  height: 17px;
-}
-
-.link-glyph {
   text-transform: uppercase;
   line-height: 1;
+  pointer-events: none;
 }
 
-.link-del {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 15px;
-  height: 15px;
+.quickapps-empty {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  background: var(--tooltip-bg);
-  border: 1px solid var(--hairline);
-  border-radius: 50%;
+  padding: 0 var(--s-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-squircle);
   color: var(--text-4);
-  font-size: 10px;
-  line-height: 1;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
   cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
+  transition: color var(--d-base) var(--ease);
 }
 
-.link-item:hover .link-del {
-  opacity: 1;
-}
-
-.link-del:hover {
+.quickapps-empty:hover {
   color: var(--text-2);
 }
 
-/* 新增链接内联表单（默认收起） */
-.link-form {
-  display: none;
-  flex-shrink: 0;
-  gap: var(--s-2);
-  align-items: center;
-  margin-top: var(--s-2);
-}
-
-.link-form.open {
-  display: flex;
-}
-
-.link-field {
-  min-width: 0;
-  flex: 1;
-  background: var(--surface-1);
-  border: 1px solid transparent;
-  border-radius: var(--r-input);
-  padding: 4px 7px;
-  color: var(--text-1);
-  font-size: 11.5px;
-  font-weight: 400;
-  font-family: var(--font);
-  outline: none;
-  transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease);
-}
-
-.link-field:focus {
-  background: var(--surface-3);
-  border-color: var(--hairline);
-}
-
-.link-field::placeholder {
-  color: var(--text-4);
-}
-
-/* 镜子 —— 右下角 */
+/* 镜子 */
 .home-mirror {
-  flex-shrink: 0;
-  padding: var(--s-3) var(--s-2);
+  padding: var(--s-2);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--s-1);
+  min-width: 0;
+  min-height: 0;
 }
 
 .mirror-stage {
@@ -734,17 +666,19 @@ body {
   font-weight: 400;
   letter-spacing: 0.2px;
   color: var(--text-4);
+  text-align: center;
+  padding: 0 var(--s-2);
 }
 
 .home-mirror.live .mirror-hint {
   visibility: hidden;
 }
 
-/* ============ 待办 · 2×2 网格 ============ */
+/* ============ 待办 · P0–P3 四列并排 ============ */
 .sections {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: 1fr;
   gap: var(--s-3);
   height: 100%;
 }
@@ -1139,7 +1073,7 @@ body {
 /* 网格 */
 .apps-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
   gap: var(--s-3);
 }
 
@@ -1160,27 +1094,40 @@ body {
   background: var(--surface-1);
 }
 
+/* 拖拽排序（仅「全部应用」非搜索态） */
+.app-item.dragging {
+  opacity: 0.35;
+}
+
+.app-item.drag-over {
+  background: var(--surface-2);
+}
+
+/* 原生图标原样展示：无底、无高光、无裁切 */
 .app-icon {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
-  border-radius: var(--r-squircle);
-  box-shadow: inset 0 1px 0 var(--squircle-highlight);
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-1);
   color: var(--text-2);
   font-size: 20px;
   font-weight: 500;
   pointer-events: none;
 }
 
+/* icon 缺失时的首字母兜底：保留方钮壳 */
+.app-icon.fallback {
+  background: var(--surface-1);
+  border-radius: var(--r-squircle);
+  box-shadow: inset 0 1px 0 var(--squircle-highlight);
+}
+
 .app-icon img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   pointer-events: none;
 }
 
