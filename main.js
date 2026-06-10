@@ -6,6 +6,7 @@ const {
   Tray,
   Menu,
   nativeImage,
+  shell,
 } = require('electron');
 const path = require('path');
 const zlib = require('zlib');
@@ -306,6 +307,19 @@ function createTray() {
 
 ipcMain.handle('window:set-mode', (event, mode) => {
   applyMode(mode, true);
+});
+
+// 快捷链接：URL 走外部浏览器（仅 http/https），本地路径走系统打开（仅绝对路径）
+ipcMain.handle('shell:openExternal', (event, url) => {
+  if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+    return shell.openExternal(url);
+  }
+});
+
+ipcMain.handle('shell:openPath', (event, p) => {
+  if (typeof p === 'string' && path.isAbsolute(p)) {
+    return shell.openPath(p);
+  }
 });
 
 function ensureFirstRunAutoLaunch() {

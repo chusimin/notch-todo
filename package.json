@@ -50,7 +50,8 @@
       "extendInfo": {
         "LSUIElement": true,
         "NSHighResolutionCapable": true,
-        "CFBundleDisplayName": "刘海待办"
+        "CFBundleDisplayName": "刘海待办",
+        "NSCameraUsageDescription": "刘海坞需要使用摄像头来显示「镜子」预览。"
       }
     },
     "dmg": {
