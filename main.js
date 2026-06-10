@@ -420,6 +420,18 @@ async function readAppIcon(appPath) {
   }
 }
 
+// 云挂载/损坏的 .app（如网盘类应用）的文件读取可能永远不返回，
+// 单图标必须限时，否则一个卡死的 readFile 会拖死整个扫描
+const ICON_TIMEOUT_MS = 1200;
+const ICON_CONCURRENCY = 12;
+
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function scanApps() {
   const seen = new Set(); // 按应用名去重，同名保留首个
   const result = [];
@@ -440,20 +452,37 @@ async function scanApps() {
     }
   }
 
+  // 有界并发 + 单图标超时：取不到图标就置 null（渲染层有首字母兜底）
+  let cursor = 0;
+  async function iconWorker() {
+    while (cursor < result.length) {
+      const item = result[cursor++];
+      item.icon = await withTimeout(readAppIcon(item.path), ICON_TIMEOUT_MS, null);
+    }
+  }
   await Promise.all(
-    result.map(async (item) => {
-      item.icon = await readAppIcon(item.path);
-    })
+    Array.from({ length: Math.min(ICON_CONCURRENCY, result.length || 1) }, iconWorker)
   );
 
   result.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
   return result;
 }
 
+let appsScanPromise = null; // 在途扫描去重：反复进出应用 Tab 不会叠加多个全量扫描
+
 ipcMain.handle('apps:list', async (event, force) => {
   if (appsCache && !force) return appsCache;
-  appsCache = await scanApps();
-  return appsCache;
+  if (!appsScanPromise) {
+    appsScanPromise = scanApps()
+      .then((list) => {
+        appsCache = list;
+        return list;
+      })
+      .finally(() => {
+        appsScanPromise = null;
+      });
+  }
+  return appsScanPromise;
 });
 
 ipcMain.handle('apps:launch', (event, p) => {
