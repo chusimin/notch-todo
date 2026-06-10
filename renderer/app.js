@@ -171,6 +171,8 @@ function setActiveTab(name) {
   activeTab = name;
   // 离开首页即释放摄像头（隐私优先，禁止常驻）
   if (name !== 'home') stopMirror();
+  // 进入应用 Tab 才懒加载应用列表
+  if (name === 'apps') ensureAppsLoaded();
   tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   tabPanels.forEach((p) => p.classList.toggle('active', p.id === `tab-${name}`));
   positionIndicator();
@@ -528,6 +530,173 @@ if (mirrorStage) {
     } else {
       startMirror();
     }
+  });
+}
+
+// ============ 应用 · 启动坞 ============
+const APP_FAV_KEY = 'notch-app-favorites';
+const appsScroll = document.getElementById('apps-scroll');
+const appsLoadingEl = document.getElementById('apps-loading');
+const appsFavSection = document.getElementById('apps-fav-section');
+const appsFavGrid = document.getElementById('apps-fav');
+const appsAllSection = document.getElementById('apps-all-section');
+const appsAllGrid = document.getElementById('apps-all');
+const appsEmptyEl = document.getElementById('apps-empty');
+const appsSearchInput = document.getElementById('apps-search');
+
+let appsCache = null; // [{name, path, icon}]
+let appsLoadState = 'idle'; // idle | loading | ready | error
+let appsSearchTerm = '';
+
+function loadAppFavorites() {
+  try {
+    const raw = localStorage.getItem(APP_FAV_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => typeof p === 'string');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveAppFavorites(list) {
+  try {
+    localStorage.setItem(APP_FAV_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore quota errors
+  }
+}
+
+let appFavorites = loadAppFavorites();
+
+const starOutlineSvg =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l2.35 4.76 5.25.76-3.8 3.7.9 5.23L12 16.9l-4.7 2.47.9-5.23-3.8-3.7 5.25-.76z"/></svg>';
+const starFilledSvg =
+  '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 4l2.35 4.76 5.25.76-3.8 3.7.9 5.23L12 16.9l-4.7 2.47.9-5.23-3.8-3.7 5.25-.76z"/></svg>';
+
+function appGlyph(name) {
+  const ch = (name || '').trim().charAt(0) || '·';
+  return `<span class="app-glyph">${escapeHtml(ch)}</span>`;
+}
+
+function appItemHtml(appInfo, faved) {
+  const safeName = escapeHtml(appInfo.name);
+  const iconInner = appInfo.icon
+    ? `<img src="${escapeHtml(appInfo.icon)}" alt="" draggable="false" />`
+    : appGlyph(appInfo.name);
+  const favClass = faved ? ' faved' : '';
+  const star = faved ? starFilledSvg : starOutlineSvg;
+  const favLabel = faved ? '取消收藏' : '收藏';
+  return `
+    <div class="app-item" data-path="${escapeHtml(appInfo.path)}" data-action="launch" title="${safeName}">
+      <button class="app-fav-toggle${favClass}" data-action="fav" aria-label="${favLabel}">${star}</button>
+      <div class="app-icon">${iconInner}</div>
+      <span class="app-name">${safeName}</span>
+    </div>
+  `;
+}
+
+function renderApps() {
+  if (appsLoadState !== 'ready' || !appsCache) return;
+  const favSet = new Set(appFavorites);
+  const term = appsSearchTerm.trim().toLowerCase();
+  const filtering = term.length > 0;
+
+  // 全部应用（过滤后）
+  const matched = filtering
+    ? appsCache.filter((a) => a.name.toLowerCase().includes(term))
+    : appsCache;
+
+  if (appsAllGrid) {
+    appsAllGrid.innerHTML = matched
+      .map((a) => appItemHtml(a, favSet.has(a.path)))
+      .join('');
+  }
+
+  // 常用区：仅非搜索态显示，按收藏顺序在 cache 中找
+  let favApps = [];
+  if (!filtering) {
+    favApps = appFavorites
+      .map((p) => appsCache.find((a) => a.path === p))
+      .filter(Boolean);
+  }
+  if (appsFavGrid) {
+    appsFavGrid.innerHTML = favApps.map((a) => appItemHtml(a, true)).join('');
+  }
+  if (appsFavSection) appsFavSection.hidden = filtering || favApps.length === 0;
+
+  // 全部分区标题：搜索态下隐藏（结果已是全部内容），无结果时也隐藏
+  if (appsAllSection) appsAllSection.hidden = matched.length === 0;
+  if (appsEmptyEl) appsEmptyEl.hidden = matched.length > 0;
+}
+
+function setAppsLoading(isLoading) {
+  if (appsLoadingEl) appsLoadingEl.hidden = !isLoading;
+}
+
+async function ensureAppsLoaded() {
+  if (appsLoadState === 'loading' || appsLoadState === 'ready') return;
+  if (!window.notchAPI || typeof window.notchAPI.listApps !== 'function') {
+    appsLoadState = 'error';
+    if (appsLoadingEl) {
+      appsLoadingEl.textContent = '无法读取应用';
+      appsLoadingEl.hidden = false;
+    }
+    return;
+  }
+  appsLoadState = 'loading';
+  setAppsLoading(true);
+  try {
+    const list = await window.notchAPI.listApps();
+    appsCache = Array.isArray(list) ? list : [];
+    appsLoadState = 'ready';
+    setAppsLoading(false);
+    renderApps();
+  } catch (e) {
+    appsLoadState = 'error';
+    if (appsLoadingEl) {
+      appsLoadingEl.textContent = '无法读取应用';
+      appsLoadingEl.hidden = false;
+    }
+  }
+}
+
+function launchApp(path) {
+  if (!path || !window.notchAPI || typeof window.notchAPI.launchApp !== 'function')
+    return;
+  window.notchAPI.launchApp(path).catch(() => {});
+}
+
+function toggleAppFavorite(path) {
+  if (appFavorites.includes(path)) {
+    appFavorites = appFavorites.filter((p) => p !== path);
+  } else {
+    appFavorites.push(path);
+  }
+  saveAppFavorites(appFavorites);
+  renderApps();
+}
+
+// 事件委托：滚动容器内监听 launch / fav
+if (appsScroll) {
+  appsScroll.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const favBtn = e.target.closest('[data-action="fav"]');
+    if (favBtn) {
+      const item = favBtn.closest('.app-item');
+      if (item) toggleAppFavorite(item.dataset.path);
+      return;
+    }
+    const item = e.target.closest('.app-item[data-action="launch"]');
+    if (item) launchApp(item.dataset.path);
+  });
+}
+
+if (appsSearchInput) {
+  appsSearchInput.addEventListener('input', () => {
+    appsSearchTerm = appsSearchInput.value;
+    renderApps();
   });
 }
 

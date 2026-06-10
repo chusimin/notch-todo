@@ -1010,3 +1010,219 @@ body {
 .add-row input[data-priority='P3']:focus {
   border-color: var(--p3);
 }
+
+/* ============ 应用 · 启动坞 ============ */
+#tab-apps {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#tab-apps.active {
+  display: flex;
+}
+
+/* 搜索头：顶部固定 */
+.apps-head {
+  flex-shrink: 0;
+  margin-bottom: var(--s-3);
+}
+
+.apps-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.apps-search-icon {
+  position: absolute;
+  left: var(--s-3);
+  width: 15px;
+  height: 15px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.apps-search {
+  width: 100%;
+  background: var(--surface-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-input);
+  padding: 7px 10px 7px 32px;
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-weight: 400;
+  font-family: var(--font);
+  outline: none;
+  transition:
+    background var(--d-base) var(--ease),
+    border-color var(--d-base) var(--ease);
+}
+
+.apps-search:focus {
+  background: var(--surface-3);
+  border-color: var(--hairline);
+}
+
+.apps-search::placeholder {
+  color: var(--text-4);
+}
+
+/* 滚动容器 */
+.apps-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.apps-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.apps-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.apps-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+
+.apps-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* 加载 / 空态 */
+.apps-loading,
+.apps-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-6) 0;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  color: var(--text-3);
+}
+
+/* 分区 */
+.apps-fav-section,
+.apps-all-section {
+  display: block;
+}
+
+.apps-fav-section {
+  margin-bottom: var(--s-4);
+}
+
+.apps-fav-section .tile-label,
+.apps-all-section .tile-label {
+  display: block;
+  margin-bottom: var(--s-2);
+}
+
+/* 网格 */
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: var(--s-3);
+}
+
+/* 单个应用 */
+.app-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s-2) var(--s-1);
+  border-radius: var(--r-tile);
+  cursor: pointer;
+  transition: background var(--d-base) var(--ease);
+}
+
+.app-item:hover {
+  background: var(--surface-1);
+}
+
+.app-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: var(--r-squircle);
+  box-shadow: inset 0 1px 0 var(--squircle-highlight);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: 20px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.app-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.app-glyph {
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.app-name {
+  max-width: 72px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-2);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* 星标收藏：默认 hover 才显，收藏态常显 */
+.app-fav-toggle {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--tooltip-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  color: var(--text-2);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--d-base) var(--ease),
+    color var(--d-base) var(--ease);
+}
+
+.app-item:hover .app-fav-toggle {
+  opacity: 1;
+}
+
+.app-fav-toggle.faved {
+  opacity: 1;
+  color: var(--text-1);
+}
+
+.app-fav-toggle:hover {
+  color: var(--text-1);
+}
+
+.app-fav-toggle svg {
+  width: 12px;
+  height: 12px;
+}

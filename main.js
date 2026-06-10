@@ -9,6 +9,7 @@ const {
   shell,
 } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const zlib = require('zlib');
 
 // ============ 托盘图标 PNG 生成 ============
@@ -322,10 +323,71 @@ ipcMain.handle('shell:openPath', (event, p) => {
   }
 });
 
+// ============ 应用启动坞 ============
+// 扫这些目录里的 .app；目录不存在直接跳过。
+const APP_DIRS = [
+  '/Applications',
+  '/Applications/Utilities',
+  '/System/Applications',
+  '/System/Applications/Utilities',
+];
+
+let appsCache = null; // 首次扫盘较慢，结果缓存复用
+
+async function scanApps() {
+  const seen = new Set(); // 按应用名去重，同名保留首个
+  const result = [];
+
+  for (const dir of APP_DIRS) {
+    let entries;
+    try {
+      entries = await fs.promises.readdir(dir);
+    } catch (e) {
+      continue; // 目录不存在/无权限 → 跳过，不报错
+    }
+    for (const entry of entries) {
+      if (!entry.endsWith('.app')) continue;
+      const name = entry.slice(0, -4);
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const fullPath = path.join(dir, entry);
+      let icon = null;
+      try {
+        const img = await app.getFileIcon(fullPath, { size: 'large' });
+        icon = img.toDataURL();
+      } catch (e) {
+        icon = null; // 单个图标失败不影响整体
+      }
+      result.push({ name, path: fullPath, icon });
+    }
+  }
+
+  result.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+  return result;
+}
+
+ipcMain.handle('apps:list', async (event, force) => {
+  if (appsCache && !force) return appsCache;
+  appsCache = await scanApps();
+  return appsCache;
+});
+
+ipcMain.handle('apps:launch', (event, p) => {
+  if (
+    typeof p === 'string' &&
+    path.isAbsolute(p) &&
+    p.endsWith('.app') &&
+    fs.existsSync(p)
+  ) {
+    shell.openPath(p);
+    return true;
+  }
+  return false;
+});
+
 function ensureFirstRunAutoLaunch() {
   // 首次运行时默认开启开机自启；之后尊重用户在托盘菜单的选择
   if (process.platform !== 'darwin') return;
-  const fs = require('fs');
   const marker = path.join(app.getPath('userData'), '.first-run-done');
   if (fs.existsSync(marker)) return;
   try {

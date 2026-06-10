@@ -223,7 +223,34 @@
           </section>
 
           <section id="tab-apps" class="tab-panel" role="tabpanel">
-            <div class="placeholder">应用 · 即将到来</div>
+            <div class="apps-head">
+              <div class="apps-search-wrap">
+                <svg class="apps-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="6.5" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+                <input
+                  type="text"
+                  id="apps-search"
+                  class="apps-search"
+                  placeholder="搜索应用…"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+            </div>
+            <div class="apps-scroll" id="apps-scroll">
+              <div class="apps-loading" id="apps-loading">正在读取应用…</div>
+              <section class="apps-fav-section" id="apps-fav-section" hidden>
+                <span class="tile-label">常用</span>
+                <div class="apps-grid" id="apps-fav"></div>
+              </section>
+              <section class="apps-all-section" id="apps-all-section" hidden>
+                <span class="tile-label">全部应用</span>
+                <div class="apps-grid" id="apps-all"></div>
+              </section>
+              <div class="apps-empty" id="apps-empty" hidden>没有匹配的应用</div>
+            </div>
           </section>
         </div>
       </div>
