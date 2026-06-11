@@ -258,8 +258,8 @@ async function morphToTab(name) {
   }
   const availW = window.screen && window.screen.availWidth ? window.screen.availWidth : size.width + 24;
   const targetW = Math.min(size.width, availW - 24);
-  // 窗口已下移到菜单栏下方：目标高 = 顶栏结构高 + 内容高，与主进程 getExpandedSize 一致
-  const targetH = (m.chromeY || 76) + size.panelHeight;
+  // 窗口从屏幕最顶垂下：目标高 = 菜单栏带 + 顶栏结构高 + 内容高，与主进程 getExpandedSize 一致
+  const targetH = (m.menuBarHeight || 0) + (m.chromeY || 72) + size.panelHeight;
   const rect = panel.getBoundingClientRect();
   const growing = targetW >= rect.width;
   // flex:1 会无视行内 height，补间期间临时退出弹性布局

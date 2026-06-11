@@ -159,11 +159,11 @@ body {
   box-shadow: inset 0 1px 0 var(--squircle-highlight);
 }
 
-/* ============ 展开面板（贴在菜单栏下方、内容靠顶的黑色幕） ============ */
+/* ============ 展开面板（从屏幕最顶垂下、盖住菜单栏带的黑幕） ============ */
 /* 窗口尺寸切换不再用系统动画（卡顿）：窗口瞬时贴尺寸，
    面板用 width/height 过渡补间（morphToTab 锁定 px → 过渡 → 解锁），全程 GPU 友好。
-   窗口由主进程压到菜单栏下方（y = 菜单栏高），面板上沿即菜单栏下沿、内容靠顶不留黑带，
-   只圆下面两角、上沿与菜单栏相连 → 不浮空。 */
+   窗口从 y=0 垂下，黑幕盖住菜单栏带（与刘海连为一体），只圆下面两角。
+   菜单栏带（mb-h）内点击被系统拦截，顶栏经 padding-top = mb + 4 让位到带下方。 */
 .panel {
   width: 100%; /* 跟随窗口宽（per-tab 尺寸由主进程 setBounds 决定） */
   flex: 1;
@@ -173,7 +173,7 @@ body {
   border-top: none;
   border-radius: 0 0 var(--r-panel) var(--r-panel);
   box-shadow: 0 26px 60px var(--panel-shadow);
-  padding: var(--s-2) var(--s-4) var(--s-4);
+  padding: calc(var(--mb-h) + var(--s-1)) var(--s-4) var(--s-4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
