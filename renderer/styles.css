@@ -119,10 +119,11 @@ body {
   padding-bottom: 3px;
 }
 
-/* 展开态：黑条退场，只留菜单栏高度的透明占位——菜单栏透出来，
-   玻璃面板像从刘海下方垂挂（菜单栏高度带内本就不可点，不放任何交互） */
+/* 展开态：刘海条退场（高 0），面板自身从屏幕最顶贴下、铺满整片黑，
+   不再留透明缝，避免"浮空卡片"观感。菜单栏拦截带由面板 padding-top 让位 */
 #app.expanded .notch {
-  height: var(--mb-h);
+  height: 0;
+  padding: 0;
   background: transparent;
   pointer-events: none;
   border-radius: 0;
@@ -158,24 +159,27 @@ body {
   box-shadow: inset 0 1px 0 var(--squircle-highlight);
 }
 
-/* ============ 展开面板（悬挂在菜单栏下的玻璃卡片） ============ */
+/* ============ 展开面板（从屏幕顶端垂下、贴顶的黑色幕） ============ */
 /* 窗口尺寸切换不再用系统动画（卡顿）：窗口瞬时贴尺寸，
-   面板用 width/height 过渡补间（morphToTab 锁定 px → 过渡 → 解锁），全程 GPU 友好 */
+   面板用 width/height 过渡补间（morphToTab 锁定 px → 过渡 → 解锁），全程 GPU 友好。
+   贴顶：面板从 y=0 铺满整片黑（盖住菜单栏带），只圆下面两角，上沿与屏顶相连 → 不浮空。
+   顶栏控件靠 padding-top 让出菜单栏拦截带（带内点击会被系统菜单栏吞，不放交互） */
 .panel {
   width: 100%; /* 跟随窗口宽（per-tab 尺寸由主进程 setBounds 决定） */
   flex: 1;
   min-height: 0;
   background: var(--bg-base);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-panel);
-  box-shadow: 0 26px 60px var(--panel-shadow), inset 0 1px 0 var(--highlight-top);
-  padding: var(--s-3) var(--s-4) var(--s-4);
+  border-top: none;
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
+  box-shadow: 0 26px 60px var(--panel-shadow);
+  padding: calc(var(--mb-h) + var(--s-2)) var(--s-4) var(--s-4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-10px) scale(0.985);
+  transform: translateY(-8px);
   transform-origin: top center;
   transition:
     opacity var(--d-fast) var(--ease),
@@ -187,7 +191,7 @@ body {
 #app.expanded .panel {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
   transition:
     opacity 200ms var(--ease) 30ms,
     transform 240ms var(--ease) 20ms,
@@ -199,7 +203,7 @@ body {
 #app.closing .panel {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-10px) scale(0.985);
+  transform: translateY(-8px);
   transition:
     opacity 150ms var(--ease),
     transform 170ms var(--ease);
