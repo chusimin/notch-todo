@@ -123,15 +123,17 @@ function createNotchTrayIcon() {
 
 const COLLAPSED_WIDTH = 200;
 const COLLAPSED_MIN_HEIGHT = 38;
-const NOTCH_LIP = 18;
+const NOTCH_LIP = 10; // 折叠黑条在菜单栏下露出的唇边（可点击展开），尽量贴近物理刘海高度
 
-// Per-tab 展开尺寸：窗口总高 = 刘海条高 + panelHeight + 面板上下 padding
+// Per-tab 展开尺寸：窗口总高 = 菜单栏高(透明占位) + EXPANDED_CHROME_Y + panelHeight
 const TAB_SIZES = {
   home: { width: 980, panelHeight: 196 }, // 横向 HUD 条
   todo: { width: 1080, panelHeight: 300 }, // 四列并排
   apps: { width: 1120, panelHeight: 540 }, // 大网格
 };
-const PANEL_PADDING_Y = 16; // 与渲染层 .panel padding（--s-4）保持一致
+// 与渲染层结构常量对应：panel padding-top(--s-3 12) + 顶栏(--topbar-h 40)
+// + panels margin-top(--s-3 12) + panel padding-bottom(--s-4 16)
+const EXPANDED_CHROME_Y = 80;
 const SCREEN_MARGIN = 24; // 宽度超屏时两侧保留的安全边
 
 let mainWindow = null;
@@ -199,16 +201,16 @@ function getExpandedSize(display) {
   const size = TAB_SIZES[currentTab] || TAB_SIZES.home;
   return {
     width: Math.min(size.width, display.workArea.width - SCREEN_MARGIN),
-    height: getCollapsedHeight(display) + size.panelHeight + PANEL_PADDING_Y * 2,
+    height: getMenuBarHeight(display) + EXPANDED_CHROME_Y + size.panelHeight,
   };
 }
 
 // display 不传时锚定窗口当前所在屏；只有"召唤"类动作（启动/重新居中/显示）才传光标屏。
-// 跨屏移动一律瞬时（动画 setBounds 跨屏被打断会留下中间尺寸的残窗）。
-function applyMode(mode, animate, display) {
+// 一律瞬时 setBounds：系统动画 resize 会持续重绘 web 内容（卡顿），
+// 平滑感统一交给渲染层 CSS（面板入退场 + morphToTab 宽高补间）。
+function applyMode(mode, display) {
   if (!mainWindow) return;
-  const current = getWindowDisplay();
-  const d = display || current;
+  const d = display || getWindowDisplay();
   let width;
   let height;
   if (mode === 'expanded') {
@@ -217,8 +219,7 @@ function applyMode(mode, animate, display) {
     width = COLLAPSED_WIDTH;
     height = getCollapsedHeight(d);
   }
-  const crossDisplay = d.id !== current.id;
-  mainWindow.setBounds(getCenteredBounds(width, height, d), animate && !crossDisplay);
+  mainWindow.setBounds(getCenteredBounds(width, height, d));
   currentMode = mode;
 }
 
@@ -263,7 +264,7 @@ function createWindow() {
   // 点击面板以外的任何地方（窗口失焦）→ 自动收起，HUD 的自然行为
   mainWindow.on('blur', () => {
     if (currentMode === 'expanded') {
-      applyMode('collapsed', true);
+      applyMode('collapsed');
       mainWindow.webContents.send('window:collapse');
     }
   });
@@ -272,7 +273,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    applyMode('collapsed', false);
+    applyMode('collapsed');
   });
 
   mainWindow.on('closed', () => {
@@ -288,7 +289,7 @@ function toggleVisibility() {
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
-    applyMode(currentMode, false, getTargetDisplay()); // 显示前先回到鼠标所在屏顶部
+    applyMode(currentMode, getTargetDisplay()); // 显示前先回到鼠标所在屏顶部
     mainWindow.show();
   }
   refreshTrayMenu();
@@ -323,7 +324,7 @@ function refreshTrayMenu() {
     },
     {
       label: '重新居中',
-      click: () => applyMode(currentMode, false, getTargetDisplay()),
+      click: () => applyMode(currentMode, getTargetDisplay()),
     },
     { type: 'separator' },
     {
@@ -374,18 +375,23 @@ function createTray() {
 }
 
 ipcMain.handle('window:set-mode', (event, mode) => {
-  applyMode(mode, true);
+  applyMode(mode);
 });
 
 ipcMain.handle('window:metrics', () => {
-  const d = getTargetDisplay();
-  return { stripHeight: getCollapsedHeight(d) };
+  const d = getWindowDisplay();
+  return {
+    stripHeight: getCollapsedHeight(d), // 折叠黑条总高（菜单栏 + 唇边）
+    menuBarHeight: getMenuBarHeight(d), // 展开态顶部透明占位高
+    chromeY: EXPANDED_CHROME_Y, // 面板结构高（morphToTab 计算目标 px 用）
+    tabSizes: TAB_SIZES,
+  };
 });
 
 // 渲染层切 Tab 时同步：记录当前 Tab，展开态下平滑变形到该 Tab 的尺寸（仍贴顶居中）
 ipcMain.handle('window:set-tab', (event, tab) => {
   currentTab = Object.prototype.hasOwnProperty.call(TAB_SIZES, tab) ? tab : 'home';
-  if (currentMode === 'expanded') applyMode('expanded', true);
+  if (currentMode === 'expanded') applyMode('expanded');
 });
 
 // macOS 渲染层 getUserMedia 不会自动弹 TCC 授权，必须由主进程申请摄像头权限
@@ -570,7 +576,7 @@ function watchDisplayChanges() {
   const reposition = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      if (mainWindow) applyMode(currentMode, false);
+      if (mainWindow) applyMode(currentMode);
     }, 100);
   };
   screen.on('display-added', reposition);

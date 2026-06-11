@@ -35,6 +35,10 @@
   --r-input: 10px;
   --r-pill: 999px;
 
+  /* ============ 布局结构（与主进程 EXPANDED_CHROME_Y 对应） ============ */
+  --topbar-h: 40px; /* 顶栏一行：brand + tabs + 搜索 + 收起 */
+  --mb-h: 34px; /* 菜单栏高度兜底值，启动时由 window:metrics 覆写 */
+
   /* ============ 间距 · 8pt ============ */
   --s-1: 4px;
   --s-2: 8px;
@@ -107,16 +111,20 @@ body {
     background 200ms var(--ease);
 }
 
-/* 折叠态填满整个窗口高（= 菜单栏高 + 唇边，由主进程按屏计算）。
+/* 折叠态填满整个窗口高（= 菜单栏高 + 10px 唇边，由主进程按屏计算）。
    菜单栏会拦截其高度带内的点击，圆点沉到唇边里保证可见可点 */
 #app.collapsed .notch {
   height: 100vh;
   align-items: flex-end;
-  padding-bottom: var(--s-2);
+  padding-bottom: 3px;
 }
 
+/* 展开态：黑条退场，只留菜单栏高度的透明占位——菜单栏透出来，
+   玻璃面板像从刘海下方垂挂（菜单栏高度带内本就不可点，不放任何交互） */
 #app.expanded .notch {
-  width: 100vw; /* 展开宽度由主进程按 Tab 决定，渲染层跟随窗口 */
+  height: var(--mb-h);
+  background: transparent;
+  pointer-events: none;
   border-radius: 0;
 }
 
@@ -150,46 +158,71 @@ body {
   box-shadow: inset 0 1px 0 var(--squircle-highlight);
 }
 
-/* ============ 展开面板 ============ */
+/* ============ 展开面板（悬挂在菜单栏下的玻璃卡片） ============ */
+/* 窗口尺寸切换不再用系统动画（卡顿）：窗口瞬时贴尺寸，
+   面板用 width/height 过渡补间（morphToTab 锁定 px → 过渡 → 解锁），全程 GPU 友好 */
 .panel {
   width: 100%; /* 跟随窗口宽（per-tab 尺寸由主进程 setBounds 决定） */
   flex: 1;
   min-height: 0;
   background: var(--bg-base);
   border: 1px solid var(--hairline);
-  border-top: none;
-  border-radius: 0 0 var(--r-panel) var(--r-panel);
+  border-radius: var(--r-panel);
   box-shadow: 0 26px 60px var(--panel-shadow), inset 0 1px 0 var(--highlight-top);
-  padding: var(--s-4);
+  padding: var(--s-3) var(--s-4) var(--s-4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-6px);
+  transform: translateY(-10px) scale(0.985);
+  transform-origin: top center;
   transition:
     opacity var(--d-fast) var(--ease),
-    transform 220ms var(--ease);
+    transform 200ms var(--ease),
+    width 200ms var(--ease),
+    height 200ms var(--ease);
 }
 
 #app.expanded .panel {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
   transition:
-    opacity 220ms var(--ease) 80ms,
-    transform 260ms var(--ease) 60ms;
+    opacity 200ms var(--ease) 30ms,
+    transform 240ms var(--ease) 20ms,
+    width 200ms var(--ease),
+    height 200ms var(--ease);
+}
+
+/* 收起退场：窗口还保持展开尺寸，先播退场再瞬时缩窗 */
+#app.closing .panel {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px) scale(0.985);
+  transition:
+    opacity 150ms var(--ease),
+    transform 170ms var(--ease);
 }
 
 /* ============ 顶栏 ============ */
-/* [brand][tabs 紧贴左对齐][空白][collapse 居右] */
+/* 单行：[brand][tabs][弹性中段（应用 Tab 时放搜索）][collapse] */
 .topbar {
-  height: 42px;
+  height: var(--topbar-h);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: var(--s-3);
+  cursor: pointer; /* 空白处可点收起 */
+}
+
+.topbar-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .brand {
@@ -290,7 +323,6 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 .collapse-btn {
@@ -970,16 +1002,14 @@ body {
   display: flex;
 }
 
-/* 搜索头：顶部固定 */
-.apps-head {
-  flex-shrink: 0;
-  margin-bottom: var(--s-3);
-}
-
+/* 搜索框（位于顶栏中段，仅应用 Tab 显示） */
 .apps-search-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  width: 240px;
+  max-width: 100%;
+  cursor: default;
 }
 
 .apps-search-icon {
