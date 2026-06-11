@@ -28,7 +28,7 @@
   --p3: #30D158;
 
   /* ============ 圆角 ============ */
-  --r-notch: 14px;
+  --r-notch: 10px;
   --r-panel: 24px;
   --r-tile: 18px;
   --r-squircle: 12px;
@@ -159,11 +159,11 @@ body {
   box-shadow: inset 0 1px 0 var(--squircle-highlight);
 }
 
-/* ============ 展开面板（从屏幕顶端垂下、贴顶的黑色幕） ============ */
+/* ============ 展开面板（贴在菜单栏下方、内容靠顶的黑色幕） ============ */
 /* 窗口尺寸切换不再用系统动画（卡顿）：窗口瞬时贴尺寸，
    面板用 width/height 过渡补间（morphToTab 锁定 px → 过渡 → 解锁），全程 GPU 友好。
-   贴顶：面板从 y=0 铺满整片黑（盖住菜单栏带），只圆下面两角，上沿与屏顶相连 → 不浮空。
-   顶栏控件靠 padding-top 让出菜单栏拦截带（带内点击会被系统菜单栏吞，不放交互） */
+   窗口由主进程压到菜单栏下方（y = 菜单栏高），面板上沿即菜单栏下沿、内容靠顶不留黑带，
+   只圆下面两角、上沿与菜单栏相连 → 不浮空。 */
 .panel {
   width: 100%; /* 跟随窗口宽（per-tab 尺寸由主进程 setBounds 决定） */
   flex: 1;
@@ -173,7 +173,7 @@ body {
   border-top: none;
   border-radius: 0 0 var(--r-panel) var(--r-panel);
   box-shadow: 0 26px 60px var(--panel-shadow);
-  padding: calc(var(--mb-h) + var(--s-2)) var(--s-4) var(--s-4);
+  padding: var(--s-2) var(--s-4) var(--s-4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -235,6 +235,7 @@ body {
   gap: var(--s-2);
   flex-shrink: 0;
   min-width: 0;
+  cursor: pointer; /* 点品牌区收起（明确的收起热区） */
 }
 
 .brand-mark {
@@ -253,11 +254,14 @@ body {
   height: 16px;
 }
 
+/* 产品字标：无衬线、加重收紧的 wordmark 观感 */
 .brand-label {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.4px;
-  color: var(--text-3);
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue',
+    'Inter', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-1);
   white-space: nowrap;
 }
 

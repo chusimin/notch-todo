@@ -123,17 +123,18 @@ function createNotchTrayIcon() {
 
 const COLLAPSED_WIDTH = 200;
 const COLLAPSED_MIN_HEIGHT = 38;
-const NOTCH_LIP = 10; // 折叠黑条在菜单栏下露出的唇边（可点击展开），尽量贴近物理刘海高度
+const NOTCH_LIP = 6; // 折叠黑条在菜单栏下露出的唇边（可点击展开），尽量贴近物理刘海、只留一线可点
 
-// Per-tab 展开尺寸：窗口总高 = 菜单栏高(透明占位) + EXPANDED_CHROME_Y + panelHeight
+// Per-tab 展开尺寸：窗口贴在菜单栏下方（y = 菜单栏高），总高 = EXPANDED_CHROME_Y + panelHeight
 const TAB_SIZES = {
   home: { width: 980, panelHeight: 196 }, // 横向 HUD 条
   todo: { width: 1080, panelHeight: 300 }, // 四列并排
   apps: { width: 1120, panelHeight: 540 }, // 大网格
 };
-// 与渲染层结构常量对应：panel padding-top(--s-3 12) + 顶栏(--topbar-h 40)
-// + panels margin-top(--s-3 12) + panel padding-bottom(--s-4 16)
-const EXPANDED_CHROME_Y = 80;
+// 与渲染层结构常量对应：panel padding-top(--s-2 8) + 顶栏(--topbar-h 40)
+// + panels margin-top(--s-3 12) + panel padding-bottom(--s-4 16)。
+// 窗口已下移到菜单栏下方，故不再含菜单栏高度。
+const EXPANDED_CHROME_Y = 76;
 const SCREEN_MARGIN = 24; // 宽度超屏时两侧保留的安全边
 
 let mainWindow = null;
@@ -176,11 +177,13 @@ function getWindowDisplay() {
   return getTargetDisplay();
 }
 
-function getCenteredBounds(width, height, display) {
+function getCenteredBounds(width, height, display, yOffset) {
   const d = display || getTargetDisplay();
   return {
     x: Math.round(d.bounds.x + (d.bounds.width - width) / 2),
-    y: d.bounds.y, // 副屏的 y 不一定是 0，可能是负数（如外接屏在主屏上方）
+    // 副屏的 y 不一定是 0，可能是负数（如外接屏在主屏上方）；
+    // yOffset 用于展开态把窗口压到菜单栏下方，内容贴顶不被菜单栏带占位
+    y: d.bounds.y + (yOffset || 0),
     width,
     height,
   };
@@ -196,12 +199,13 @@ function getCollapsedHeight(display) {
   return Math.max(COLLAPSED_MIN_HEIGHT, getMenuBarHeight(display) + NOTCH_LIP);
 }
 
-// 展开尺寸按当前 Tab 取值；宽度超出屏幕时 clamp 到工作区内
+// 展开尺寸按当前 Tab 取值；宽度超出屏幕时 clamp 到工作区内。
+// 窗口下移到菜单栏下方，故高度不含菜单栏带。
 function getExpandedSize(display) {
   const size = TAB_SIZES[currentTab] || TAB_SIZES.home;
   return {
     width: Math.min(size.width, display.workArea.width - SCREEN_MARGIN),
-    height: getMenuBarHeight(display) + EXPANDED_CHROME_Y + size.panelHeight,
+    height: EXPANDED_CHROME_Y + size.panelHeight,
   };
 }
 
@@ -213,13 +217,15 @@ function applyMode(mode, display) {
   const d = display || getWindowDisplay();
   let width;
   let height;
+  let yOffset = 0;
   if (mode === 'expanded') {
     ({ width, height } = getExpandedSize(d));
+    yOffset = getMenuBarHeight(d); // 贴在菜单栏下方，内容靠顶
   } else {
     width = COLLAPSED_WIDTH;
     height = getCollapsedHeight(d);
   }
-  mainWindow.setBounds(getCenteredBounds(width, height, d));
+  mainWindow.setBounds(getCenteredBounds(width, height, d, yOffset));
   currentMode = mode;
 }
 
@@ -382,8 +388,8 @@ ipcMain.handle('window:metrics', () => {
   const d = getWindowDisplay();
   return {
     stripHeight: getCollapsedHeight(d), // 折叠黑条总高（菜单栏 + 唇边）
-    menuBarHeight: getMenuBarHeight(d), // 展开态顶部透明占位高
-    chromeY: EXPANDED_CHROME_Y, // 面板结构高（morphToTab 计算目标 px 用）
+    menuBarHeight: getMenuBarHeight(d), // 折叠态菜单栏带高（折叠条上半部分被其拦截）
+    chromeY: EXPANDED_CHROME_Y, // 展开面板结构高（morphToTab 计算目标 px 用，不含菜单栏带）
     tabSizes: TAB_SIZES,
   };
 });

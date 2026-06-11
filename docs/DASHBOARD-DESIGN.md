@@ -1,4 +1,4 @@
-# 刘海坞 · 仪表盘设计规格（DASHBOARD-DESIGN）
+# NotchTodo · 仪表盘设计规格（DASHBOARD-DESIGN）
 
 > 本文是渲染层（`renderer/`）重写的唯一设计依据。所有子任务实现前必须读此文件，
 > 任何颜色/圆角/间距/字号/动效都从这里取值，**不得自行发明**。
@@ -236,7 +236,7 @@ TAB_SIZES = {
 - **多屏锚定（真机踩坑后定死）**：模式切换 / Tab 变形 / 失焦收起一律锚定**窗口当前所在屏**（`screen.getDisplayMatching(win.getBounds())`），绝不跟随光标——否则失焦瞬间刘海会瞬移到光标所在的另一块屏。只有"召唤"类动作（启动初始定位 / 托盘"重新居中" / 显示）才用光标所在屏（`getTargetDisplay()`）。跨屏移动一律瞬时 `setBounds`（动画跨屏被打断会留下中间尺寸残窗）。
 
 ### 10.2 顶栏：Tab 移到左上
-`.topbar` = [brand 方钮 + 「刘海坞」] [tabs 分段控件（紧贴 brand，左对齐）] [flex:1 空白] [collapse 按钮]。滑动胶囊机制保留。
+`.topbar` = [brand 方钮 + 「NotchTodo」字标（无衬线 SF Pro Display 600）] [tabs 分段控件（紧贴 brand，左对齐）] [flex:1 空白] [collapse 按钮]。滑动胶囊机制保留。
 
 ### 10.x Round 3 修订（2026-06-10，卡顿 / 高度 / 顶部布局）
 - **窗口零动画铁律**：主进程 `setBounds` 一律瞬时（系统动画 resize 持续重绘 web 内容必卡）。平滑感全在渲染层：

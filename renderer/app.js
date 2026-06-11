@@ -258,8 +258,8 @@ async function morphToTab(name) {
   }
   const availW = window.screen && window.screen.availWidth ? window.screen.availWidth : size.width + 24;
   const targetW = Math.min(size.width, availW - 24);
-  // 面板铺满整窗（刘海高 0）：目标高 = 菜单栏带 + 顶栏结构高 + 内容高，与主进程 getExpandedSize 一致
-  const targetH = (m.menuBarHeight || 0) + (m.chromeY || 80) + size.panelHeight;
+  // 窗口已下移到菜单栏下方：目标高 = 顶栏结构高 + 内容高，与主进程 getExpandedSize 一致
+  const targetH = (m.chromeY || 76) + size.panelHeight;
   const rect = panel.getBoundingClientRect();
   const growing = targetW >= rect.width;
   // flex:1 会无视行内 height，补间期间临时退出弹性布局
@@ -349,13 +349,13 @@ if (collapseBtn) {
 }
 
 // 顶栏空白处点按收起——黑条在展开态已退场，由顶栏接替这一角色。
-// 排除交互区（品牌 / Tab / 按钮 / 输入 / 搜索框），其余区域都可收起。
+// 排除交互区（Tab / 按钮 / 输入 / 搜索框），品牌区与空白处都可收起（明确的收起热区）。
 // 注意：home/todo 下搜索框隐藏会让 .topbar-mid 高度塌成 0，点击其实落在 .topbar 上，
 // 所以必须挂在 .topbar 上并用 closest 排除，不能只认 .topbar-mid 本体。
 const topbarEl = document.querySelector('.topbar');
 if (topbarEl) {
   topbarEl.addEventListener('click', (e) => {
-    if (e.target.closest('.brand, .tabs, button, input, .apps-search-wrap')) return;
+    if (e.target.closest('.tabs, button, input, .apps-search-wrap')) return;
     e.stopPropagation();
     setMode(false);
   });
