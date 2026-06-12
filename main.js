@@ -125,17 +125,16 @@ const COLLAPSED_WIDTH = 200;
 const COLLAPSED_MIN_HEIGHT = 38;
 const NOTCH_LIP = 6; // 折叠黑条在菜单栏下露出的唇边（可点击展开），尽量贴近物理刘海、只留一线可点
 
-// Per-tab 展开尺寸：窗口从屏幕最顶垂下（y=0，黑幕盖住菜单栏带），
-// 总高 = 菜单栏带高 + EXPANDED_CHROME_Y + panelHeight
+// Per-tab 展开尺寸：窗口从屏幕最顶垂下（y=0），内容直接顶到屏幕最上沿，不补菜单栏黑带。
+// 总高 = EXPANDED_CHROME_Y + panelHeight
 const TAB_SIZES = {
   home: { width: 980, panelHeight: 196 }, // 横向 HUD 条
   todo: { width: 1080, panelHeight: 300 }, // 四列并排
   apps: { width: 1120, panelHeight: 540 }, // 大网格
 };
-// 与渲染层结构常量对应：panel 在菜单栏带下的呼吸位(--s-1 4) + 顶栏(--topbar-h 40)
-// + panels margin-top(--s-3 12) + panel padding-bottom(--s-4 16)。
-// 菜单栏带高度另算（panel padding-top = mb + 4，见 styles.css）。
-const EXPANDED_CHROME_Y = 72;
+// 与渲染层结构常量对应：panel padding-top(--s-2 8) + 顶栏(--topbar-h 40)
+// + panels margin-top(--s-3 12) + panel padding-bottom(--s-4 16)。内容顶到屏幕最上沿，不留菜单栏带。
+const EXPANDED_CHROME_Y = 76;
 const SCREEN_MARGIN = 24; // 宽度超屏时两侧保留的安全边
 
 let mainWindow = null;
@@ -199,12 +198,12 @@ function getCollapsedHeight(display) {
 }
 
 // 展开尺寸按当前 Tab 取值；宽度超出屏幕时 clamp 到工作区内。
-// 窗口从屏幕最顶垂下（盖住菜单栏带），高度含菜单栏带。
+// 窗口从屏幕最顶垂下（y=0），内容直接顶到最上沿，高度不含菜单栏带。
 function getExpandedSize(display) {
   const size = TAB_SIZES[currentTab] || TAB_SIZES.home;
   return {
     width: Math.min(size.width, display.workArea.width - SCREEN_MARGIN),
-    height: getMenuBarHeight(display) + EXPANDED_CHROME_Y + size.panelHeight,
+    height: EXPANDED_CHROME_Y + size.panelHeight,
   };
 }
 
