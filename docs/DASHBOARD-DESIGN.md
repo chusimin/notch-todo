@@ -1,4 +1,4 @@
-# 刘海坞 · 仪表盘设计规格（DASHBOARD-DESIGN）
+# NotchTodo · 仪表盘设计规格（DASHBOARD-DESIGN）
 
 > 本文是渲染层（`renderer/`）重写的唯一设计依据。所有子任务实现前必须读此文件，
 > 任何颜色/圆角/间距/字号/动效都从这里取值，**不得自行发明**。
@@ -236,7 +236,16 @@ TAB_SIZES = {
 - **多屏锚定（真机踩坑后定死）**：模式切换 / Tab 变形 / 失焦收起一律锚定**窗口当前所在屏**（`screen.getDisplayMatching(win.getBounds())`），绝不跟随光标——否则失焦瞬间刘海会瞬移到光标所在的另一块屏。只有"召唤"类动作（启动初始定位 / 托盘"重新居中" / 显示）才用光标所在屏（`getTargetDisplay()`）。跨屏移动一律瞬时 `setBounds`（动画跨屏被打断会留下中间尺寸残窗）。
 
 ### 10.2 顶栏：Tab 移到左上
-`.topbar` = [brand 方钮 + 「刘海坞」] [tabs 分段控件（紧贴 brand，左对齐）] [flex:1 空白] [collapse 按钮]。滑动胶囊机制保留。
+`.topbar` = [brand 方钮 + 「NotchTodo」字标（无衬线 SF Pro Display 600）] [tabs 分段控件（紧贴 brand，左对齐）] [flex:1 空白] [collapse 按钮]。滑动胶囊机制保留。
+
+### 10.x Round 3 修订（2026-06-10，卡顿 / 高度 / 顶部布局）
+- **窗口零动画铁律**：主进程 `setBounds` 一律瞬时（系统动画 resize 持续重绘 web 内容必卡）。平滑感全在渲染层：
+  - 展开 = 先瞬时放大窗口 → `.panel` 入场（translateY -10px + scale 0.985 → 复位，240ms）；
+  - 收起 = 先加 `.closing` 播退场（170ms）→ 再瞬时缩窗；失焦收起由主进程直接缩窗、渲染层仅同步类；
+  - 切 Tab = `morphToTab`：面板临时 `flex:0 0 auto` + 锁定当前 px → CSS 过渡到目标 px（200ms）。三档尺寸严格有序（home < todo < apps），**放大先变窗、缩小后变窗**，补间永远发生在"窗口足够大"的一侧，不露裁切。目标 px 由 `window:metrics` 下发（tabSizes + chromeY）。
+- **折叠高度贴近物理刘海**：唇边 18px → **10px**（`NOTCH_LIP`），圆点 padding-bottom 3px。
+- **展开态顶部布局**（对齐用户标注）：黑条退场（`.notch` 变菜单栏高的透明占位、pointer-events none），**菜单栏透出**，玻璃面板全圆角悬挂其下；顶栏单行 = [brand][tabs][`.topbar-mid` 弹性中段][collapse]，**应用 Tab 的搜索框移入中段右对齐**（其余 Tab 隐藏，`#topbar-search`）。窗口总高 = 菜单栏高 + `EXPANDED_CHROME_Y`(80 = 12+40+12+16) + panelHeight。
+- **顶栏中段空白点按收起**：只认 `.topbar-mid` 本体（brand/tabs 周边缝隙不响应，防脱靶误收）。
 
 ### 10.3 首页改横向 bento（对齐 Nook X 参考图）
 panel 内单行横排 grid：`grid-template-columns: 220px 252px 1fr 132px`（时钟 | 快捷应用 | 速记 | 镜子），gap var(--s-3)，全部 .tile 材质，高度填满。

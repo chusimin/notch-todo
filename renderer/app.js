@@ -114,29 +114,43 @@ function deleteTodo(priority, id) {
 }
 
 let isExpanded = false;
+let modeBusy = false;
 
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function ipcSetMode(mode) {
+  if (!window.notchAPI || typeof window.notchAPI.setMode !== 'function') return;
+  try {
+    await window.notchAPI.setMode(mode);
+  } catch (e) {
+    // ignore
+  }
+}
+
+// 窗口尺寸一律瞬时贴位（主进程不再做系统动画 resize），平滑感全在 CSS：
+// 展开 = 先瞬时放大窗口，再播面板入场；收起 = 先播退场（窗口还大着），再瞬时缩窗
 async function setMode(expanded) {
-  if (expanded === isExpanded) return;
+  if (expanded === isExpanded || modeBusy) return;
+  modeBusy = true;
   isExpanded = expanded;
-  if (expanded) {
-    app.classList.remove('collapsed');
-    app.classList.add('expanded');
-  } else {
-    app.classList.remove('expanded');
-    app.classList.add('collapsed');
-    // 收起窗口即释放摄像头（窗口此时隐藏，禁止常驻）
-    stopMirror();
-  }
-  if (expanded) {
-    // 展开后面板从隐藏变为可见，tab 尺寸此时才可量，校准激活胶囊位置
-    requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
-  }
-  if (window.notchAPI && typeof window.notchAPI.setMode === 'function') {
-    try {
-      await window.notchAPI.setMode(expanded ? 'expanded' : 'collapsed');
-    } catch (e) {
-      // ignore
+  try {
+    if (expanded) {
+      await ipcSetMode('expanded');
+      app.classList.remove('collapsed', 'closing');
+      app.classList.add('expanded');
+      // 展开后面板从隐藏变为可见，tab 尺寸此时才可量，校准激活胶囊位置
+      requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
+    } else {
+      // 收起窗口即释放摄像头（禁止常驻）
+      stopMirror();
+      app.classList.add('closing');
+      await wait(170);
+      app.classList.remove('expanded', 'closing');
+      app.classList.add('collapsed');
+      await ipcSetMode('collapsed');
     }
+  } finally {
+    modeBusy = false;
   }
 }
 
@@ -163,24 +177,31 @@ if (window.notchAPI && typeof window.notchAPI.onEscape === 'function') {
   });
 }
 
-// 主进程发起的收起（窗口失焦自动收起）：只同步类与状态，不再回发 IPC
+// 主进程发起的收起（窗口失焦自动收起，主进程已瞬时缩窗）：只同步类与状态，不再回发 IPC
 if (window.notchAPI && typeof window.notchAPI.onCollapse === 'function') {
   window.notchAPI.onCollapse(() => {
     if (!isExpanded) return;
     isExpanded = false;
-    app.classList.remove('expanded');
+    app.classList.remove('expanded', 'closing');
     app.classList.add('collapsed');
     stopMirror();
   });
 }
 
-// 刘海条高度 = 菜单栏高 + 唇边（主进程按屏计算），让展开态的条也露出可点唇边
+// 布局度量（主进程按屏计算下发）：折叠条高 / 菜单栏占位高 / 各 Tab 目标尺寸
+let layoutMetrics = null;
+
 if (window.notchAPI && typeof window.notchAPI.getMetrics === 'function') {
   window.notchAPI
     .getMetrics()
     .then((m) => {
-      if (m && m.stripHeight) {
+      if (!m) return;
+      layoutMetrics = m;
+      if (m.stripHeight) {
         document.documentElement.style.setProperty('--notch-h', `${m.stripHeight}px`);
+      }
+      if (m.menuBarHeight) {
+        document.documentElement.style.setProperty('--mb-h', `${m.menuBarHeight}px`);
       }
     })
     .catch(() => {});
@@ -203,26 +224,108 @@ function positionIndicator() {
   tabIndicator.style.transform = `translateX(${btn.offsetLeft}px)`;
 }
 
-function setActiveTab(name) {
-  if (!TABS.includes(name)) name = 'home';
-  activeTab = name;
-  // 离开首页即释放摄像头（隐私优先，禁止常驻）
-  if (name !== 'home') stopMirror();
-  // 应用 Tab 需要列表；首页的快捷应用模块同样需要图标数据（主进程有缓存与在途去重）
-  if (name === 'apps' || name === 'home') ensureAppsLoaded();
-  // 通知主进程按 Tab 调整窗口尺寸（展开态下平滑变形，仍贴顶居中）
-  if (window.notchAPI && typeof window.notchAPI.setTab === 'function') {
-    window.notchAPI.setTab(name).catch(() => {});
-  }
+const topbarSearch = document.getElementById('topbar-search');
+
+function applyTabDom(name) {
   tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   tabPanels.forEach((p) => p.classList.toggle('active', p.id === `tab-${name}`));
-  // 窗口宽度此时可能正在动画变化，双帧后再校准一次胶囊位置
+  // 搜索框只属于应用 Tab（顶栏中段）
+  if (topbarSearch) topbarSearch.hidden = name !== 'apps';
   positionIndicator();
   requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
+}
+
+async function ipcSetTab(name) {
+  if (!window.notchAPI || typeof window.notchAPI.setTab !== 'function') return;
   try {
-    localStorage.setItem(TAB_KEY, name);
+    await window.notchAPI.setTab(name);
   } catch (e) {
-    // ignore quota errors
+    // ignore
+  }
+}
+
+// 展开态切 Tab：窗口瞬时贴新尺寸（系统动画 resize 卡顿，弃用），
+// 面板锁定当前 px → CSS 过渡到目标 px 桥接视觉。
+// 三档尺寸严格有序（home < todo < apps），放大先变窗（透明区域不可见）、
+// 缩小后变窗（裁切不可见），补间永远发生在"窗口足够大"的一侧。
+async function morphToTab(name) {
+  const m = layoutMetrics;
+  const size = m && m.tabSizes && m.tabSizes[name];
+  if (!size) {
+    await ipcSetTab(name);
+    applyTabDom(name);
+    return;
+  }
+  const availW = window.screen && window.screen.availWidth ? window.screen.availWidth : size.width + 24;
+  const targetW = Math.min(size.width, availW - 24);
+  // 窗口从屏幕最顶垂下、内容顶到上沿：目标高 = 顶栏结构高 + 内容高，与主进程 getExpandedSize 一致
+  const targetH = (m.chromeY || 76) + size.panelHeight;
+  const rect = panel.getBoundingClientRect();
+  const growing = targetW >= rect.width;
+  // flex:1 会无视行内 height，补间期间临时退出弹性布局
+  panel.style.flex = '0 0 auto';
+  panel.style.width = `${rect.width}px`;
+  panel.style.height = `${rect.height}px`;
+  void panel.offsetWidth; // 锁定起点，确保过渡生效
+  applyTabDom(name); // 内容交叉淡入与尺寸补间并行
+  if (growing) {
+    await ipcSetTab(name);
+    panel.style.width = `${targetW}px`;
+    panel.style.height = `${targetH}px`;
+    await wait(210);
+  } else {
+    panel.style.width = `${targetW}px`;
+    panel.style.height = `${targetH}px`;
+    await wait(210);
+    await ipcSetTab(name);
+  }
+  panel.style.flex = '';
+  panel.style.width = '';
+  panel.style.height = '';
+  positionIndicator();
+}
+
+let tabBusy = false;
+let pendingTab = null;
+
+async function setActiveTab(name) {
+  if (!TABS.includes(name)) name = 'home';
+  if (tabBusy) {
+    pendingTab = name; // 补间中连点：记住最后目标，结束后追赶
+    return;
+  }
+  if (name === activeTab) {
+    applyTabDom(name);
+    return;
+  }
+  tabBusy = true;
+  activeTab = name;
+  try {
+    // 离开首页即释放摄像头（隐私优先，禁止常驻）
+    if (name !== 'home') stopMirror();
+    // 应用 Tab 需要列表；首页的快捷应用模块同样需要图标数据（主进程有缓存与在途去重）
+    if (name === 'apps' || name === 'home') ensureAppsLoaded();
+    if (isExpanded) {
+      await morphToTab(name);
+    } else {
+      // 折叠态只记录目标尺寸（主进程不变形），展开时一步到位
+      await ipcSetTab(name);
+      applyTabDom(name);
+    }
+    try {
+      localStorage.setItem(TAB_KEY, name);
+    } catch (e) {
+      // ignore quota errors
+    }
+  } finally {
+    tabBusy = false;
+    if (pendingTab && pendingTab !== activeTab) {
+      const next = pendingTab;
+      pendingTab = null;
+      setActiveTab(next);
+    } else {
+      pendingTab = null;
+    }
   }
 }
 
@@ -240,6 +343,19 @@ tabButtons.forEach((btn) => {
 
 if (collapseBtn) {
   collapseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setMode(false);
+  });
+}
+
+// 顶栏空白处点按收起——黑条在展开态已退场，由顶栏接替这一角色。
+// 排除交互区（Tab / 按钮 / 输入 / 搜索框），品牌区与空白处都可收起（明确的收起热区）。
+// 注意：home/todo 下搜索框隐藏会让 .topbar-mid 高度塌成 0，点击其实落在 .topbar 上，
+// 所以必须挂在 .topbar 上并用 closest 排除，不能只认 .topbar-mid 本体。
+const topbarEl = document.querySelector('.topbar');
+if (topbarEl) {
+  topbarEl.addEventListener('click', (e) => {
+    if (e.target.closest('.tabs, button, input, .apps-search-wrap')) return;
     e.stopPropagation();
     setMode(false);
   });
