@@ -1,12 +1,20 @@
-# NotchTodo
+<p align="center">
+  <img src="docs/hero.svg" alt="NotchTodo — 常驻 macOS 刘海的纯单色玻璃仪表盘" width="920">
+</p>
 
-> 一个常驻 macOS 屏幕顶部刘海位置的纯单色玻璃仪表盘。默认折叠成刘海大小，点击从刘海垂下展开，
-> 含 **首页 / 待办 / 应用** 三个 Tab。再次点击顶部刘海条收起。
+<h1 align="center">NotchTodo</h1>
 
-![平台](https://img.shields.io/badge/platform-macOS-blue?style=flat-square)
-![架构](https://img.shields.io/badge/arch-Apple%20Silicon-orange?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![无依赖](https://img.shields.io/badge/runtime-Electron%2033-9cf?style=flat-square)
+<p align="center">
+  一个常驻 macOS 屏幕顶部刘海位置的纯单色玻璃仪表盘。<br>
+  默认折叠成刘海大小，点一下从刘海垂下展开，含 <b>首页 / 待办 / 应用</b> 三个 Tab，再点收起。
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="平台">
+  <img src="https://img.shields.io/badge/arch-Apple%20Silicon-orange?style=flat-square" alt="架构">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/runtime-Electron%2033-9cf?style=flat-square" alt="无依赖">
+</p>
 
 ---
 

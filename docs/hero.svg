@@ -1,0 +1,134 @@
+<svg viewBox="0 0 1200 460" xmlns="http://www.w3.org/2000/svg" role="img" font-family="-apple-system, 'SF Pro Display', 'PingFang SC', system-ui, sans-serif">
+  <title>NotchTodo — 常驻 macOS 刘海的纯单色玻璃仪表盘</title>
+  <desc>左侧产品名与三个 Tab 功能介绍，右侧是从刘海垂下的仪表盘界面模拟图。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0E0E12"/>
+      <stop offset="1" stop-color="#08080A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#5B6CFF" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#5B6CFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="panelEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.07"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect x="0" y="0" width="1200" height="460" rx="28" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="1199" height="459" rx="27.5" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+  <ellipse cx="880" cy="210" rx="430" ry="300" fill="url(#glow)"/>
+
+  <!-- ============ 左：文案 ============ -->
+  <!-- 品牌字标 -->
+  <text x="72" y="120" font-size="54" font-weight="700" letter-spacing="-1.6" fill="#F5F5F7">NotchTodo</text>
+  <text x="74" y="162" font-size="18" font-weight="500" fill="#ffffff" fill-opacity="0.62">常驻 macOS 刘海的纯单色玻璃仪表盘</text>
+  <text x="74" y="188" font-size="14.5" fill="#ffffff" fill-opacity="0.40">点一下从刘海垂下展开 · 黑色玻璃 HUD · 折叠回刘海</text>
+
+  <!-- 功能三行 -->
+  <!-- 首页 -->
+  <g transform="translate(74,232)">
+    <rect x="0" y="0" width="34" height="34" rx="9" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.10"/>
+    <path d="M9 17 L17 10 L25 17 M11 15.5 V24 H23 V15.5" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="48" y="15" font-size="15.5" font-weight="600" fill="#F0F0F2">首页</text>
+    <text x="48" y="32" font-size="13" fill="#ffffff" fill-opacity="0.50">时钟 · 速记 · 快捷应用 · 镜子摄像头</text>
+  </g>
+  <!-- 待办 -->
+  <g transform="translate(74,288)">
+    <rect x="0" y="0" width="34" height="34" rx="9" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.10"/>
+    <path d="M9 11 H21 M9 17 H21 M9 23 H17" stroke="#ffffff" stroke-opacity="0.85" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M23.5 10.5 L25.5 12.5 L29 8.5" fill="none" stroke="#30D158" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="48" y="15" font-size="15.5" font-weight="600" fill="#F0F0F2">待办</text>
+    <text x="48" y="32" font-size="13" fill="#ffffff" fill-opacity="0.50">P0–P3 四象限 · 连按两次回车防误触</text>
+    <circle cx="318" cy="11" r="4.5" fill="#FF453A"/>
+    <circle cx="336" cy="11" r="4.5" fill="#FF9F0A"/>
+    <circle cx="354" cy="11" r="4.5" fill="#FFD60A"/>
+    <circle cx="372" cy="11" r="4.5" fill="#30D158"/>
+  </g>
+  <!-- 应用 -->
+  <g transform="translate(74,344)">
+    <rect x="0" y="0" width="34" height="34" rx="9" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.10"/>
+    <rect x="9" y="9" width="7" height="7" rx="2" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="1.5"/>
+    <rect x="18" y="9" width="7" height="7" rx="2" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="1.5"/>
+    <rect x="9" y="18" width="7" height="7" rx="2" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="1.5"/>
+    <rect x="18" y="18" width="7" height="7" rx="2" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="1.5"/>
+    <text x="48" y="15" font-size="15.5" font-weight="600" fill="#F0F0F2">应用</text>
+    <text x="48" y="32" font-size="13" fill="#ffffff" fill-opacity="0.50">本机启动坞 · 搜索 · 收藏 · 拖拽排序</text>
+  </g>
+
+  <!-- 平台标 -->
+  <g transform="translate(74,406)">
+    <rect x="0" y="0" width="208" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.10"/>
+    <circle cx="18" cy="14" r="3.5" fill="#30D158"/>
+    <text x="32" y="18.5" font-size="12.5" font-weight="500" fill="#ffffff" fill-opacity="0.62">macOS · Apple Silicon · Electron</text>
+  </g>
+
+  <!-- ============ 右：产品模拟 ============ -->
+  <!-- 菜单栏暗示（细线 + 状态点） -->
+  <line x1="600" y1="70" x2="1140" y2="70" stroke="#ffffff" stroke-opacity="0.07"/>
+  <circle cx="1118" cy="64" r="2.2" fill="#ffffff" fill-opacity="0.30"/>
+  <circle cx="1108" cy="64" r="2.2" fill="#ffffff" fill-opacity="0.30"/>
+  <circle cx="1098" cy="64" r="2.2" fill="#ffffff" fill-opacity="0.30"/>
+
+  <!-- 面板投影 -->
+  <ellipse cx="870" cy="378" rx="250" ry="26" fill="#000000" fill-opacity="0.55"/>
+
+  <!-- 刘海 -->
+  <path d="M805 56 L935 56 L935 81 Q935 92 924 92 L816 92 Q805 92 805 81 Z" fill="#000000"/>
+  <!-- 面板（上沿接刘海、只圆下两角） -->
+  <path d="M600 92 L1140 92 L1140 350 Q1140 372 1118 372 L622 372 Q600 372 600 350 Z" fill="#000000" stroke="url(#panelEdge)" stroke-width="1"/>
+
+  <!-- 顶栏 -->
+  <rect x="622" y="106" width="22" height="22" rx="7" fill="#ffffff" fill-opacity="0.08"/>
+  <path d="M628 117 l4 -3 l5 3 l-1 5 l-7 0 Z" fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="1.1"/>
+  <text x="654" y="123" font-size="13" font-weight="600" fill="#F2F2F4">NotchTodo</text>
+  <!-- 分段控件 -->
+  <rect x="772" y="104" width="246" height="28" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.06"/>
+  <rect x="776" y="108" width="74" height="20" rx="10" fill="#ffffff" fill-opacity="0.10"/>
+  <text x="795" y="122" font-size="12.5" font-weight="500" fill="#F2F2F4">首页</text>
+  <text x="876" y="122" font-size="12.5" fill="#ffffff" fill-opacity="0.42">待办</text>
+  <text x="956" y="122" font-size="12.5" fill="#ffffff" fill-opacity="0.42">应用</text>
+  <path d="M1108 122 l6 -6 l6 6" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- bento 四块 -->
+  <!-- 时钟 -->
+  <g transform="translate(620,154)">
+    <rect x="0" y="0" width="172" height="200" rx="16" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.07"/>
+    <rect x="18" y="22" width="92" height="22" rx="11" fill="#ffffff" fill-opacity="0.05"/>
+    <text x="30" y="37.5" font-size="12" font-weight="600" fill="#30D158">周三 · 6/11</text>
+    <text x="18" y="118" font-size="46" font-weight="600" letter-spacing="-1" fill="#F4F4F6">14:0<tspan fill="#FF9F0A">8</tspan></text>
+    <text x="150" y="118" font-size="15" fill="#ffffff" fill-opacity="0.32">07</text>
+    <text x="18" y="160" font-size="12.5" fill="#ffffff" fill-opacity="0.38">实时跳秒 · 等宽数字</text>
+  </g>
+  <!-- 快捷应用 -->
+  <g transform="translate(804,154)">
+    <rect x="0" y="0" width="150" height="200" rx="16" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.07"/>
+    <text x="18" y="34" font-size="12" font-weight="600" fill="#ffffff" fill-opacity="0.42">快捷应用</text>
+    <rect x="18" y="52" width="36" height="36" rx="10" fill="#2E7CF6"/>
+    <rect x="62" y="52" width="36" height="36" rx="10" fill="#A45BFF"/>
+    <rect x="106" y="52" width="36" height="36" rx="10" fill="#19C8B0"/>
+    <rect x="18" y="98" width="36" height="36" rx="10" fill="#FF6B5E"/>
+    <rect x="62" y="98" width="36" height="36" rx="10" fill="#3DD17A"/>
+    <rect x="106" y="98" width="36" height="36" rx="10" fill="#ffffff" fill-opacity="0.10"/>
+    <path d="M124 110 v12 M118 116 h12" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.6" stroke-linecap="round"/>
+    <text x="18" y="166" font-size="12.5" fill="#ffffff" fill-opacity="0.38">与收藏同源 · 点击启动</text>
+  </g>
+  <!-- 速记 -->
+  <g transform="translate(966,154)">
+    <rect x="0" y="0" width="92" height="200" rx="16" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.07"/>
+    <text x="16" y="34" font-size="13" fill="#ffffff" fill-opacity="0.78">你好</text>
+    <rect x="16" y="44" width="1.5" height="16" fill="#ffffff" fill-opacity="0.35"/>
+    <text x="16" y="184" font-size="11.5" fill="#ffffff" fill-opacity="0.30">速记</text>
+  </g>
+  <!-- 镜子 -->
+  <g transform="translate(1070,154)">
+    <rect x="0" y="0" width="50" height="200" rx="16" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.07"/>
+    <circle cx="25" cy="86" r="22" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+    <rect x="15" y="80" width="20" height="14" rx="3" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.3"/>
+    <circle cx="25" cy="87" r="4" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.3"/>
+    <text x="25" y="150" font-size="11" fill="#ffffff" fill-opacity="0.34" text-anchor="middle">镜子</text>
+  </g>
+</svg>
