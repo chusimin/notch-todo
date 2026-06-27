@@ -43,7 +43,7 @@
 - 三 Tab 结构：首页（横向 bento：时钟·日期 / 快捷应用[与收藏同源] / 速记 / 镜子摄像头）+ 待办（P0–P3 四列并排）+ 应用（本机应用启动坞，搜索 / 收藏 / 点击启动 / 拖拽排序 notch-app-order）；左上分段控件切换，激活胶囊滑动 + 内容交叉淡入，记住上次所在 Tab
 - 配色：纯单色玻璃 —— 纯黑底 #000000、白色分级文本，强调色仅 P0–P3 色点（P0 红 / P1 橙 / P2 黄 / P3 绿）与 app 原生图标
 - 圆角：折叠条下方两角 10px（--r-notch）、展开面板下方两角 24px（--r-panel），两者上沿都贴顶不圆角
-- 动效：transform / opacity / width / height 过渡，--ease = cubic-bezier(0.32, 0.72, 0, 1)，入场 240ms / 退场 170ms / 变形补间 200ms；窗口本身零动画
+- 动效 Motion System v2：4 条曲线（--ease 兼容 / --ease-out expo 入退场 / --ease-spring 回弹落定 / --ease-soft 尺寸变形防过冲）；展开=面板从刘海垂下 scale0.96→1 落定（380ms，transform-origin top）、收起=回缩淡出 180ms、内容级联 riseIn（块依次上浮，backwards 填充免与 hover 冲突）、Tab 胶囊 spring 落定、控件 :active 缩小 + 图标 dock 式提起 + 勾选 checkPop + 新增 itemIn（后两者 JS 一次性 class）；窗口本身仍零动画（防卡顿铁律）；prefers-reduced-motion 全局降级
 - 提交方式：输入框内**连按两次回车**确认新增 —— 第一次回车进入待确认（armed）并浮出「再按一次回车提交」提示，第二次才提交；中途继续输入或失焦会重置，输入法组合态（isComposing）忽略。意在防误触
 
 ## 代码规范

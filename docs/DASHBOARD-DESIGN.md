@@ -77,15 +77,23 @@
 | 次要说明 / 计数 | 10.5–11px / 500 / `--text-3` |
 > 字重只用 400 与 500，不用 600/700（克制，避免发胖）。
 
-### 1.5 动效
+### 1.5 动效 · Motion System v2（丝滑升级）
 ```
---ease: cubic-bezier(0.32, 0.72, 0, 1);   /* 全局缓动，贴近 iOS 弹性 */
---d-fast: 180ms; --d-base: 240ms; --d-slow: 320ms;
+--ease:        cubic-bezier(0.32, 0.72, 0, 1);   /* 兼容旧引用 */
+--ease-out:    cubic-bezier(0.16, 1, 0.3, 1);    /* expo-out：入场/退场主曲线 */
+--ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);  /* 轻微回弹落定：胶囊/勾选/提起 */
+--ease-soft:   cubic-bezier(0.4, 0, 0.2, 1);     /* 对称缓动：窗口尺寸变形（无过冲防裁切）*/
+--d-1:110ms(按压) --d-fast:180ms --d-base:240ms --d-slow:320ms --d-grand:380ms(展开大手势)
 ```
-- 刘海展开/收起：宽度 320ms、圆角 260ms（沿用现有）。
-- Tab 切换：激活胶囊滑动 320ms `--ease`；内容区交叉淡入（旧淡出 140ms → 新淡入 220ms，配 6px Y 位移）。
-- tile hover：背景 200ms。
-- 一切动效只用 transform + opacity（合成层，禁止动 layout 属性）。
+**核心理念**：① 入场是「从刘海垂下并落定」的一个连续手势，不是淡入；② 内容级联入场（块依次上浮）让界面"活"；③ 每个控件都有触觉反馈（按压缩小 / 提起 / 勾选弹一下）。
+
+- **展开**：`.panel` 从 `translateY(-14px) scale(0.96)` → 归位，`transform-origin: top center`，380ms expo-out（从刘海下沿垂下并落定）；窗口尺寸变形仍瞬时（防卡顿铁律），`--ease-soft` 200ms 补间。
+- **收起**：`.closing` 面板回缩 `scale(0.975) translateY(-12px)` + 淡出 180ms（snappy）。
+- **内容级联**：进入任一 Tab，`.home-bento>* / .sections>* / .apps-scroll>*` 依次 `riseIn`（上浮 12px 淡入，stagger 30/78/126/174ms，`backwards` 填充以免与 hover transform 冲突）。
+- **Tab 胶囊**：`translateX` 用 `--ease-spring` 360ms 落定、`width` 用 expo-out 300ms（宽度不过冲免抖）。
+- **触觉微反馈**：Tab/按钮 `:active scale(0.86~0.94)`；首页 bento 块 hover `translateY(-2px)`+投影；快捷应用/启动坞图标 hover dock 式提起 `translateY(-3~4px) scale(1.06~1.1)`（spring）；「+」hover 旋转 90°；勾选框 `checkPop` 弹一下（JS 一次性 `.pop`）+ 勾 `scale(0.6→1)`；新增待办 `itemIn` 滑入（JS 一次性 `.enter`）；折叠刘海 hover 圆点拉成小药丸（抓握暗示）。
+- **无障碍**：`@media (prefers-reduced-motion: reduce)` 全局降到 0.01ms。
+- 一切动效只用 transform/opacity（合成层）+ 必要的 width/height 补间；禁止动其它 layout 属性。
 
 ---
 

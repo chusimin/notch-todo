@@ -82,11 +82,31 @@ function renderAll() {
   });
 }
 
+// 渲染重建 innerHTML 后，给指定条目挂一次性动画类；动画结束即卸载，不污染后续渲染
+function flashItemClass(priority, id, cls) {
+  const el = document.querySelector(
+    `.todo-item[data-priority="${priority}"][data-id="${id}"]`
+  );
+  if (!el) return;
+  el.classList.add(cls);
+  el.addEventListener('animationend', () => el.classList.remove(cls), { once: true });
+}
+
+function flashCheckboxPop(priority, id) {
+  const box = document.querySelector(
+    `.todo-item[data-priority="${priority}"][data-id="${id}"] .checkbox`
+  );
+  if (!box) return;
+  box.classList.add('pop');
+  box.addEventListener('animationend', () => box.classList.remove('pop'), { once: true });
+}
+
 function addTodo(priority, text) {
   const trimmed = text.trim();
   if (!trimmed) return;
+  const id = generateId();
   data[priority].push({
-    id: generateId(),
+    id,
     text: trimmed,
     done: false,
     createdAt: Date.now(),
@@ -94,6 +114,7 @@ function addTodo(priority, text) {
   saveData(data);
   renderList(priority);
   updateCount(priority);
+  flashItemClass(priority, id, 'enter'); // 新条目滑入
 }
 
 function toggleTodo(priority, id) {
@@ -101,9 +122,11 @@ function toggleTodo(priority, id) {
   const idx = list.findIndex((t) => t.id === id);
   if (idx === -1) return;
   list[idx].done = !list[idx].done;
+  const nowDone = list[idx].done;
   saveData(data);
   renderList(priority);
   updateCount(priority);
+  if (nowDone) flashCheckboxPop(priority, id); // 勾选弹一下
 }
 
 function deleteTodo(priority, id) {

@@ -52,11 +52,16 @@
     'PingFang SC', sans-serif;
   --font-mono: 'SF Mono', ui-monospace, monospace;
 
-  /* ============ 动效 ============ */
-  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* ============ 动效 · Motion System v2 ============ */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1); /* 兼容旧引用：减速曲线 */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* 强减速 expo-out，入场/退场主曲线 */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1); /* 轻微回弹落定：胶囊滑动 / 勾选 / 提起 */
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1); /* 对称缓动：窗口尺寸变形（无过冲，防裁切） */
+  --d-1: 110ms; /* 微反馈：按压 */
   --d-fast: 180ms;
   --d-base: 240ms;
   --d-slow: 320ms;
+  --d-grand: 380ms; /* 展开大手势 */
 }
 
 * {
@@ -132,9 +137,18 @@ body {
 .notch-dot {
   width: 4px;
   height: 4px;
-  border-radius: 50%;
+  border-radius: 999px;
   background: var(--text-4);
-  transition: opacity 160ms var(--ease);
+  transition:
+    opacity 160ms var(--ease),
+    width var(--d-base) var(--ease-spring),
+    background var(--d-fast) var(--ease);
+}
+
+/* 折叠态 hover：圆点拉成小药丸 + 提亮，作为"可下拉"的抓握暗示 */
+#app.collapsed .notch:hover .notch-dot {
+  width: 24px;
+  background: var(--text-2);
 }
 
 #app.expanded .notch-dot {
@@ -147,11 +161,22 @@ body {
   border: 1px solid var(--hairline);
   border-radius: var(--r-tile);
   box-shadow: inset 0 1px 0 var(--tile-highlight);
-  transition: background var(--d-base) var(--ease);
+  transition:
+    background var(--d-base) var(--ease),
+    transform var(--d-base) var(--ease-out),
+    box-shadow var(--d-base) var(--ease);
 }
 
 .tile:hover {
   background: var(--surface-2);
+}
+
+/* 首页 bento 块 hover 微提起（待办四列是作业面，不提起以免干扰勾选） */
+.home-bento > .tile:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 var(--tile-highlight),
+    0 10px 26px rgba(0, 0, 0, 0.38);
 }
 
 .squircle {
@@ -178,34 +203,36 @@ body {
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-8px);
-  transform-origin: top center;
+  transform: translateY(-14px) scale(0.96);
+  transform-origin: top center; /* 从刘海下沿"垂下并展开" */
+  will-change: transform, opacity;
   transition:
-    opacity var(--d-fast) var(--ease),
-    transform 200ms var(--ease),
-    width 200ms var(--ease),
-    height 200ms var(--ease);
+    opacity var(--d-fast) var(--ease-out),
+    transform var(--d-fast) var(--ease-out),
+    width 200ms var(--ease-soft),
+    height 200ms var(--ease-soft);
 }
 
+/* 展开：面板从刘海垂下并落定（scale 0.96→1 + 下移归位，expo-out 大手势） */
 #app.expanded .panel {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
   transition:
-    opacity 200ms var(--ease) 30ms,
-    transform 240ms var(--ease) 20ms,
-    width 200ms var(--ease),
-    height 200ms var(--ease);
+    opacity 220ms var(--ease-out) 20ms,
+    transform var(--d-grand) var(--ease-out),
+    width 200ms var(--ease-soft),
+    height 200ms var(--ease-soft);
 }
 
-/* 收起退场：窗口还保持展开尺寸，先播退场再瞬时缩窗 */
+/* 收起退场：面板回缩进刘海（窗口还保持展开尺寸，先播退场再瞬时缩窗） */
 #app.closing .panel {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-8px);
+  transform: translateY(-12px) scale(0.975);
   transition:
-    opacity 150ms var(--ease),
-    transform 170ms var(--ease);
+    opacity 150ms var(--ease-out),
+    transform 180ms var(--ease-out);
 }
 
 /* ============ 顶栏 ============ */
@@ -293,11 +320,17 @@ body {
   letter-spacing: 0.1px;
   cursor: pointer;
   white-space: nowrap;
-  transition: color var(--d-base) var(--ease);
+  transition:
+    color var(--d-base) var(--ease),
+    transform var(--d-1) var(--ease-out);
 }
 
 .tab:hover {
   color: var(--text-2);
+}
+
+.tab:active {
+  transform: scale(0.93);
 }
 
 .tab.active {
@@ -320,9 +353,10 @@ body {
   border-radius: var(--r-pill);
   pointer-events: none;
   transform: translateX(0);
+  /* 胶囊滑动用弹簧落定，宽度用减速（宽度过冲会抖） */
   transition:
-    transform var(--d-slow) var(--ease),
-    width var(--d-slow) var(--ease);
+    transform 360ms var(--ease-spring),
+    width 300ms var(--ease-out);
 }
 
 /* ============ 顶栏右侧 ============ */
@@ -344,12 +378,17 @@ body {
   cursor: pointer;
   transition:
     background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
+    color var(--d-base) var(--ease),
+    transform var(--d-1) var(--ease-out);
 }
 
 .collapse-btn:hover {
   background: var(--surface-2);
   color: var(--text-1);
+}
+
+.collapse-btn:active {
+  transform: scale(0.86);
 }
 
 .collapse-btn svg {
@@ -381,8 +420,45 @@ body {
   pointer-events: auto;
   transform: translateY(0);
   transition:
-    opacity 220ms var(--ease) 40ms,
-    transform 220ms var(--ease) 40ms;
+    opacity 220ms var(--ease-out) 30ms,
+    transform 220ms var(--ease-out) 30ms;
+}
+
+/* 内容级联入场：进入某 Tab 时，块依次上浮淡入。
+   用 backwards 填充——动画结束即回归元素自身样式，不与 hover 的 transform 冲突 */
+.tab-panel.active .home-bento > *,
+.tab-panel.active .sections > *,
+.tab-panel.active .apps-scroll > * {
+  animation: riseIn 440ms var(--ease-out) backwards;
+}
+.tab-panel.active .home-bento > *:nth-child(1),
+.tab-panel.active .sections > *:nth-child(1),
+.tab-panel.active .apps-scroll > *:nth-child(2) {
+  animation-delay: 30ms;
+}
+.tab-panel.active .home-bento > *:nth-child(2),
+.tab-panel.active .sections > *:nth-child(2),
+.tab-panel.active .apps-scroll > *:nth-child(3) {
+  animation-delay: 78ms;
+}
+.tab-panel.active .home-bento > *:nth-child(3),
+.tab-panel.active .sections > *:nth-child(3) {
+  animation-delay: 126ms;
+}
+.tab-panel.active .home-bento > *:nth-child(4),
+.tab-panel.active .sections > *:nth-child(4) {
+  animation-delay: 174ms;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 占位面板 */
@@ -546,12 +622,18 @@ body {
   cursor: pointer;
   transition:
     background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
+    color var(--d-base) var(--ease),
+    transform var(--d-1) var(--ease-out);
 }
 
 .quickapps-add:hover {
   background: var(--surface-2);
   color: var(--text-1);
+  transform: rotate(90deg);
+}
+
+.quickapps-add:active {
+  transform: scale(0.86);
 }
 
 .quickapps-add svg {
@@ -579,11 +661,18 @@ body {
   border: none;
   border-radius: var(--r-squircle);
   cursor: pointer;
-  transition: background var(--d-base) var(--ease);
+  transition:
+    background var(--d-base) var(--ease),
+    transform var(--d-fast) var(--ease-spring);
 }
 
 .quickapp-item:hover {
   background: var(--surface-1);
+  transform: translateY(-3px) scale(1.06);
+}
+
+.quickapp-item:active {
+  transform: scale(0.92);
 }
 
 /* 真实图标原样展示，不包壳 */
@@ -849,6 +938,22 @@ body {
   text-decoration-color: var(--text-4);
 }
 
+/* 新增一条时滑入（由 JS 给新条目加 .enter，一次性） */
+.todo-item.enter {
+  animation: itemIn 340ms var(--ease-out);
+}
+
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ============ 复选框 ============ */
 .checkbox {
   width: 13px;
@@ -862,14 +967,41 @@ body {
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: all var(--d-base) var(--ease);
+  transition:
+    background var(--d-base) var(--ease),
+    border-color var(--d-base) var(--ease),
+    transform var(--d-fast) var(--ease-spring);
+}
+
+/* 勾选弹一下（由 JS 给当次切换的那个 checkbox 加 .pop，一次性） */
+.checkbox.pop {
+  animation: checkPop 380ms var(--ease-spring);
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.24);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .checkbox svg {
   width: 8px;
   height: 8px;
   opacity: 0;
-  transition: opacity var(--d-base) var(--ease);
+  transform: scale(0.6);
+  transition:
+    opacity var(--d-fast) var(--ease-out),
+    transform var(--d-base) var(--ease-spring);
+}
+
+.todo-item.done .checkbox svg {
+  transform: scale(1);
 }
 
 .todo-item.done .checkbox svg {
@@ -1124,11 +1256,17 @@ body {
   padding: var(--s-2) var(--s-1);
   border-radius: var(--r-tile);
   cursor: pointer;
-  transition: background var(--d-base) var(--ease);
+  transition:
+    background var(--d-base) var(--ease),
+    transform var(--d-1) var(--ease-out);
 }
 
 .app-item:hover {
   background: var(--surface-1);
+}
+
+.app-item:active {
+  transform: scale(0.96);
 }
 
 /* 拖拽排序（仅「全部应用」非搜索态） */
@@ -1152,6 +1290,12 @@ body {
   font-size: 20px;
   font-weight: 500;
   pointer-events: none;
+  transition: transform var(--d-base) var(--ease-spring);
+}
+
+/* dock 式提起：图标上浮放大（图标动、名字不动，层次更稳） */
+.app-item:hover .app-icon {
+  transform: translateY(-4px) scale(1.1);
 }
 
 /* icon 缺失时的首字母兜底：保留方钮壳 */
@@ -1223,4 +1367,32 @@ body {
 .app-fav-toggle svg {
   width: 12px;
   height: 12px;
+}
+
+.app-fav-toggle {
+  transition:
+    opacity var(--d-base) var(--ease),
+    color var(--d-base) var(--ease),
+    transform var(--d-1) var(--ease-out);
+}
+
+.app-fav-toggle:active {
+  transform: scale(0.8);
+}
+
+/* ============ 拖拽排序：抬起 / 落点过渡 ============ */
+.app-item.dragging {
+  opacity: 0.4;
+  transform: scale(0.9);
+}
+
+/* ============ 尊重系统"减弱动态效果" ============ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
