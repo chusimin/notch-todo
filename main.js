@@ -154,6 +154,7 @@ let clipPollTimer = null;
 let clipPolling = false; // 互斥锁：大图 toPNG 同步耗时，防止上一轮未完成又进入
 let lastClipTextFingerprint = null;
 let lastClipImageFingerprint = null;
+let clipShortcutRegistered = false; // 全局快捷键是否注册成功（被占用/系统拒绝时为 false，托盘菜单据此提示）
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -341,6 +342,24 @@ function refreshTrayMenu() {
       label: '重新居中',
       click: () => applyMode(currentMode, getTargetDisplay()),
     },
+    { type: 'separator' },
+    // 剪贴板召唤快捷键状态：成功时可点重设，失败（被占用/未授权）时提示原因
+    clipShortcutRegistered
+      ? { label: '剪贴板快捷键：⌘⇧V', enabled: false }
+      : {
+          label: '⚠️ 剪贴板快捷键未生效（被占用/未授权）',
+          click: () => {
+            const { dialog } = require('electron');
+            dialog.showMessageBox({
+              type: 'warning',
+              title: '全局快捷键未生效',
+              message: '⌘⇧V 未能注册为剪贴板召唤快捷键',
+              detail:
+                '可能原因：\n1. 被其他常驻应用占用（如剪贴板/输入法工具）\n2. macOS 未授权输入监控（系统设置 → 隐私与安全性 → 输入监控，勾选本应用后重启）\n\n仍可点击顶部刘海展开、手动切到「剪贴板」Tab。',
+              buttons: ['好'],
+            });
+          },
+        },
     { type: 'separator' },
     {
       label: '开机自动启动',
@@ -671,7 +690,9 @@ function stopClipboardPolling() {
 // 召唤类动作跟随光标屏（参考 toggleVisibility），唤出窗口后聚焦并通知渲染层打开剪贴板 Tab
 function registerClipboardShortcut() {
   try {
-    globalShortcut.register(CLIP_SHORTCUT, () => {
+    // register 返回 false（或 isRegistered 为假）= 快捷键被占用/系统拒绝。
+    // 必须回读结果：静默失败会让用户「按了没反应还不知道为什么」。
+    const ok = globalShortcut.register(CLIP_SHORTCUT, () => {
       if (!mainWindow) return;
       const d = getTargetDisplay();
       applyMode('expanded', d);
@@ -679,9 +700,12 @@ function registerClipboardShortcut() {
       mainWindow.focus();
       mainWindow.webContents.send('app:open-clip');
     });
+    clipShortcutRegistered = ok && globalShortcut.isRegistered(CLIP_SHORTCUT);
   } catch (e) {
-    // 快捷键注册失败（被其他应用占用等），静默
+    clipShortcutRegistered = false;
   }
+  refreshTrayMenu(); // 托盘菜单据此显示快捷键状态（成功/被占用）
+  return clipShortcutRegistered;
 }
 
 // 渲染层请求把图片文件读成 dataURL 回显（contextIsolation 下 file:// 受限，走 IPC 读盘）
