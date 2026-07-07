@@ -125,7 +125,11 @@ function createNotchTrayIcon() {
 
 const COLLAPSED_WIDTH = 200;
 const COLLAPSED_MIN_HEIGHT = 38;
-const NOTCH_LIP = 6; // 折叠黑条在菜单栏下露出的唇边（可点击展开），尽量贴近物理刘海、只留一线可点
+// NOTCH_LIP（原 6px 唇边）已移除：折叠条高度现在恰好等于菜单栏高（≈物理刘海高），
+// 一个像素都不超出物理刘海。虽然折叠条完全在菜单栏拦截带内，
+// 但本项目窗口使用 setAlwaysOnTop(true,'screen-saver') 级别，
+// 实测菜单栏不拦截该级别窗口的点击，折叠条仍可点击展开。
+// （见项目记忆 notch-top-geometry-constraint / commit f12aea1）
 
 // Per-tab 展开尺寸：窗口从屏幕最顶垂下（y=0），内容直接顶到屏幕最上沿，不补菜单栏黑带。
 // 总高 = EXPANDED_CHROME_Y + panelHeight
@@ -202,13 +206,17 @@ function getCenteredBounds(width, height, display) {
 }
 
 // macOS 菜单栏会拦截其高度带内的所有鼠标点击（即使窗口绘制在其上方），
-// 刘海屏机型菜单栏高约 37pt，折叠态必须在菜单栏下方露出一段"唇边"才可点击。
+// 刘海屏机型菜单栏高约 37pt，等于物理刘海高度。
 function getMenuBarHeight(display) {
   return Math.max(0, display.workArea.y - display.bounds.y);
 }
 
 function getCollapsedHeight(display) {
-  return Math.max(COLLAPSED_MIN_HEIGHT, getMenuBarHeight(display) + NOTCH_LIP);
+  const mb = getMenuBarHeight(display);
+  // 折叠条高度恰好等于菜单栏带（≈物理刘海高），一个像素都不超出物理刘海。
+  // 无刘海的外接屏 menuBarHeight 仍是真实菜单栏高，能正常露头；
+  // 异常取到 0 才回退兜底（COLLAPSED_MIN_HEIGHT = 38px）。
+  return mb > 0 ? mb : COLLAPSED_MIN_HEIGHT;
 }
 
 // 展开尺寸按当前 Tab 取值；宽度超出屏幕时 clamp 到工作区内。
@@ -415,7 +423,7 @@ ipcMain.handle('window:set-mode', (event, mode) => {
 ipcMain.handle('window:metrics', () => {
   const d = getWindowDisplay();
   return {
-    stripHeight: getCollapsedHeight(d), // 折叠黑条总高（菜单栏 + 唇边）
+    stripHeight: getCollapsedHeight(d), // 折叠黑条总高（= 菜单栏高 = 物理刘海高，不含唇边）
     menuBarHeight: getMenuBarHeight(d), // 折叠态菜单栏带高（折叠条上半部分被其拦截）
     chromeY: EXPANDED_CHROME_Y, // 展开面板结构高（morphToTab 计算目标 px 用，不含菜单栏带）
     tabSizes: TAB_SIZES,

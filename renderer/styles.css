@@ -53,15 +53,16 @@
   --font-mono: 'SF Mono', ui-monospace, monospace;
 
   /* ============ 动效 · Motion System v2 ============ */
-  --ease: cubic-bezier(0.32, 0.72, 0, 1); /* 兼容旧引用：减速曲线 */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* 强减速 expo-out，入场/退场主曲线 */
-  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1); /* 轻微回弹落定：胶囊滑动 / 勾选 / 提起 */
-  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1); /* 对称缓动：窗口尺寸变形（无过冲，防裁切） */
-  --d-1: 110ms; /* 微反馈：按压 */
-  --d-fast: 180ms;
-  --d-base: 240ms;
-  --d-slow: 320ms;
-  --d-grand: 380ms; /* 展开大手势 */
+  --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Linear 主曲线：快启动平稳落定，无回弹，日常 hover/微交互 */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* 强减速 expo-out，入场/退场主曲线（保留） */
+  --ease-spring: cubic-bezier(0.34, 1.1, 0.4, 1); /* 极轻微回弹落定：胶囊滑动/勾选（1.4→1.1，收敛过冲） */
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1); /* 对称缓动：窗口尺寸变形（无过冲，防裁切，保留） */
+  --d-micro: 100ms; /* 纯颜色过渡，对齐 Linear 0.1s */
+  --d-1: 90ms; /* 微反馈：按压（原 110ms） */
+  --d-fast: 140ms; /* hover/颜色/边框主时长（原 180ms），对齐 Linear 0.16s */
+  --d-base: 180ms; /* 内容态过渡（原 240ms） */
+  --d-slow: 260ms; /* 原 320ms */
+  --d-grand: 340ms; /* 展开大手势（原 380ms，略收但保留仪式感） */
 }
 
 * {
@@ -162,9 +163,9 @@ body {
   border-radius: var(--r-tile);
   box-shadow: inset 0 1px 0 var(--tile-highlight);
   transition:
-    background var(--d-base) var(--ease),
-    transform var(--d-base) var(--ease-out),
-    box-shadow var(--d-base) var(--ease);
+    background var(--d-fast) var(--ease),
+    transform var(--d-fast) var(--ease-out),
+    box-shadow var(--d-fast) var(--ease);
 }
 
 .tile:hover {
@@ -321,7 +322,7 @@ body {
   cursor: pointer;
   white-space: nowrap;
   transition:
-    color var(--d-base) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -353,10 +354,10 @@ body {
   border-radius: var(--r-pill);
   pointer-events: none;
   transform: translateX(0);
-  /* 胶囊滑动用弹簧落定，宽度用减速（宽度过冲会抖） */
+  /* 胶囊滑动：spring 落定（已收敛回弹），宽度用减速（宽度过冲会抖） */
   transition:
-    transform 360ms var(--ease-spring),
-    width 300ms var(--ease-out);
+    transform var(--d-base) var(--ease-spring),
+    width var(--d-base) var(--ease-out);
 }
 
 /* ============ 顶栏右侧 ============ */
@@ -377,8 +378,8 @@ body {
   color: var(--text-3);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -624,8 +625,8 @@ body {
   color: var(--text-3);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -665,7 +666,7 @@ body {
   border-radius: var(--r-squircle);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
     transform var(--d-fast) var(--ease-spring);
 }
 
@@ -719,7 +720,7 @@ body {
   font-weight: 400;
   letter-spacing: 0.2px;
   cursor: pointer;
-  transition: color var(--d-base) var(--ease);
+  transition: color var(--d-fast) var(--ease);
 }
 
 .quickapps-empty:hover {
@@ -777,7 +778,7 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--text-3);
-  transition: opacity var(--d-base) var(--ease);
+  transition: opacity var(--d-fast) var(--ease);
 }
 
 .mirror-placeholder svg {
@@ -924,7 +925,7 @@ body {
   color: var(--text-1);
   border-radius: 4px;
   line-height: 1.4;
-  transition: background var(--d-base) var(--ease);
+  transition: background var(--d-fast) var(--ease);
 }
 
 .todo-item:hover {
@@ -971,8 +972,8 @@ body {
   justify-content: center;
   padding: 0;
   transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease),
     transform var(--d-fast) var(--ease-spring);
 }
 
@@ -1000,7 +1001,7 @@ body {
   transform: scale(0.6);
   transition:
     opacity var(--d-fast) var(--ease-out),
-    transform var(--d-base) var(--ease-spring);
+    transform var(--d-fast) var(--ease-spring);
 }
 
 .todo-item.done .checkbox svg {
@@ -1049,8 +1050,8 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease);
 }
 
 .delete:hover {
@@ -1083,8 +1084,8 @@ body {
   opacity: 0;
   transform: translateY(3px);
   transition:
-    opacity var(--d-base) var(--ease),
-    transform var(--d-base) var(--ease);
+    opacity var(--d-fast) var(--ease),
+    transform var(--d-fast) var(--ease);
 }
 
 .add-row.armed::after {
@@ -1104,8 +1105,8 @@ body {
   font-family: var(--font);
   outline: none;
   transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease);
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease);
 }
 
 .add-row input:focus {
@@ -1175,8 +1176,8 @@ body {
   font-family: var(--font);
   outline: none;
   transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease);
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease);
 }
 
 .apps-search:focus {
@@ -1260,7 +1261,7 @@ body {
   border-radius: var(--r-tile);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -1293,7 +1294,7 @@ body {
   font-size: 20px;
   font-weight: 500;
   pointer-events: none;
-  transition: transform var(--d-base) var(--ease-spring);
+  transition: transform var(--d-fast) var(--ease-spring);
 }
 
 /* dock 式提起：图标上浮放大（图标动、名字不动，层次更稳） */
@@ -1350,8 +1351,8 @@ body {
   cursor: pointer;
   opacity: 0;
   transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease);
 }
 
 .app-item:hover .app-fav-toggle {
@@ -1374,8 +1375,8 @@ body {
 
 .app-fav-toggle {
   transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -1426,9 +1427,9 @@ body {
   letter-spacing: 0.1px;
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease);
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease);
   -webkit-app-region: no-drag;
 }
 
@@ -1456,8 +1457,8 @@ body {
   cursor: pointer;
   margin-left: auto;
   transition:
-    background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
   -webkit-app-region: no-drag;
 }
@@ -1526,8 +1527,8 @@ body {
   border: 1px solid var(--hairline-soft);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
   -webkit-app-region: no-drag;
 }
@@ -1665,8 +1666,8 @@ body {
   cursor: pointer;
   opacity: 0;
   transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
   -webkit-app-region: no-drag;
 }
