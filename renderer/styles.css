@@ -145,10 +145,10 @@ body {
    常态就是一条提亮的短药丸（12px 宽），而非旧的 4px 暗点，
    否则和纯黑刘海无从分辨、用户找不到折叠条在哪。 */
 .notch-dot {
-  width: 12px;
+  width: 14px;
   height: 3px;
   border-radius: 999px;
-  background: var(--text-3);
+  background: var(--text-2); /* 0.55 不透明度：在深色刘海下沿明确可辨（用户曾丢失折叠条，可见性优先） */
   transition:
     opacity 160ms var(--ease),
     width var(--d-base) var(--ease-spring),
