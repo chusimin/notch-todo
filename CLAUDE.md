@@ -1,6 +1,6 @@
 # 桌面刘海屏待办
 
-一个常驻在 macOS 屏幕顶部刘海位置的纯单色玻璃**仪表盘**：默认折叠成刘海大小，点击从刘海垂下展开，含**首页 / 待办 / 应用**三个 Tab —— 首页（时钟·日期 / 速记 / 快捷链接 / 镜子摄像头）、待办（P0/P1/P2/P3 四象限勾选式待办）、应用（本机应用启动坞）。
+一个常驻在 macOS 屏幕顶部刘海位置的纯单色玻璃**仪表盘**：默认折叠成刘海大小，点击从刘海垂下展开，含**首页 / 待办 / 剪贴板 / 应用**四个 Tab —— 首页（时钟·日期 / 速记 / 快捷链接 / 镜子摄像头）、待办（P0/P1/P2/P3 四象限勾选式待办）、剪贴板（自动记录复制的文字·链接·图片，可收藏/删除/清空，点击写回系统剪贴板，全局快捷键 Cmd+Shift+V 召唤）、应用（本机应用启动坞）。
 
 ## 技术栈
 
@@ -27,7 +27,7 @@
   renderer/
     index.html       # 渲染入口（3-Tab DOM）
     styles.css       # 刘海 + 仪表盘玻璃样式
-    app.js           # 三 Tab 交互逻辑 + LocalStorage 持久化
+    app.js           # 四 Tab 交互逻辑 + LocalStorage 持久化
   docs/
     DASHBOARD-DESIGN.md  # 仪表盘设计规格（渲染层唯一取值依据）
 ```
@@ -35,12 +35,13 @@
 ## 关键设计参数
 
 - 刘海尺寸：宽 200px，高 = 菜单栏高度 + 6px 唇边（最小 38px，主进程按屏计算）—— macOS 菜单栏/物理刘海会拦截其高度带内的点击，刘海必须在菜单栏下方露出唇边才可见、可点；唇边压到 6px 让黑条尽量贴近物理刘海（用户确认的形态：贴刘海·窄唇边）
-- 展开尺寸：按 Tab 取值 —— 首页 980 / 待办 1080 / 应用 1120 宽，窗口从屏幕最顶垂下（y=0，黑幕盖住菜单栏带），总高 = 菜单栏带 + EXPANDED_CHROME_Y(72) + panelHeight(196/300/540)；宽度超屏 clamp 到工作区-24
+- 展开尺寸：按 Tab 取值 —— 首页 980 / 待办 1080 / 剪贴板 1100 / 应用 1120 宽（宽度严格有序，morphToTab 补间依赖），窗口从屏幕最顶垂下（y=0，黑幕盖住菜单栏带），总高 = 菜单栏带 + EXPANDED_CHROME_Y(72) + panelHeight(196/300/400/540)；宽度超屏 clamp 到工作区-24
 - 展开态布局：黑幕从屏幕最顶垂下、盖住菜单栏带（与刘海连为一体，只圆下方两角）；顶栏经 padding-top = 菜单栏高 + 4 让位到拦截带下方；顶栏单行 = [brand「NotchTodo」字标][tabs][弹性中段：应用 Tab 的搜索框][收起钮]
 - 窗口变形（防卡顿铁律）：**主进程 setBounds 一律瞬时、禁用系统动画**（NSWindow 动画 resize 持续重绘 web 内容必卡）；平滑感全在渲染层 CSS —— 展开 = 先瞬时放大窗口再播面板入场；收起 = 先播退场再瞬时缩窗；切 Tab = morphToTab 锁定面板 px → 过渡到目标 px（放大先变窗、缩小后变窗，补间永远发生在窗口足够大的一侧）
 - 多屏锚定：模式切换 / Tab 变形 / 失焦收起一律锚定**窗口当前所在屏**（getDisplayMatching），绝不跟随光标——否则失焦瞬间刘海会瞬移到光标所在的另一块屏；仅启动 / 托盘重新居中 / 显示跟随光标屏
 - 展开/收起交互：折叠态点唇边展开；收起 = 再点顶部刘海位正下方的顶栏（整条顶栏除 Tab/按钮/输入外都是收起热区，含品牌区）/ 收起钮 / 点面板外任意处（窗口失焦）自动收起 / Esc（主进程 before-input-event 转发兜底，Escape 不会原生到达页面）
-- 三 Tab 结构：首页（横向 bento：时钟·日期 / 快捷应用[与收藏同源] / 速记 / 镜子摄像头）+ 待办（P0–P3 四列并排）+ 应用（本机应用启动坞，搜索 / 收藏 / 点击启动 / 拖拽排序 notch-app-order）；左上分段控件切换，激活胶囊滑动 + 内容交叉淡入，记住上次所在 Tab
+- 四 Tab 结构：首页（横向 bento：时钟·日期 / 快捷应用[与收藏同源] / 速记 / 镜子摄像头）+ 待办（P0–P3 四列并排）+ 剪贴板（历史列表 + 工具栏过滤器[全部/文字/图片/收藏]/清空钮）+ 应用（本机应用启动坞，搜索 / 收藏 / 点击启动 / 拖拽排序 notch-app-order）；左上分段控件切换，激活胶囊滑动 + 内容交叉淡入，记住上次所在 Tab
+- 剪贴板：主进程 500ms 轮询 clipboard（Electron 无 changeCount，靠文本本身/图片「宽x高:PNG字节长度」指纹去重），文字里正则 `/^https?:/i` 判链接；跳过 org.nspasteboard.ConcealedType（密码管理器敏感内容）；图片写盘到 userData/clipboard-images/（IPC 统一走 isInsideClipDir 路径白名单，尾分隔符防兄弟目录逃逸），元数据存 LocalStorage，图片 dataURL 仅内存 Map 缓存（绝不进 LocalStorage，否则爆配额）；FIFO 上限 100（notch-clip-history 最新在头，超出淘汰最老并连带删图）；收藏 = notch-clip-favorites（id 数组，与 notch-app-favorites 同构）；点条目 clipboard:write 写回系统剪贴板供用户 Cmd+V；全局快捷键 Cmd+Shift+V 经 app:open-clip 驱动展开并切到本 Tab（主进程已 applyMode，渲染层只同步 expanded 类不回发 IPC）
 - 配色：纯单色玻璃 —— 纯黑底 #000000、白色分级文本，强调色仅 P0–P3 色点（P0 红 / P1 橙 / P2 黄 / P3 绿）与 app 原生图标
 - 圆角：折叠条下方两角 10px（--r-notch）、展开面板下方两角 24px（--r-panel），两者上沿都贴顶不圆角
 - 动效 Motion System v2：4 条曲线（--ease 兼容 / --ease-out expo 入退场 / --ease-spring 回弹落定 / --ease-soft 尺寸变形防过冲）；展开=面板从刘海垂下 scale0.96→1 落定（380ms，transform-origin top）、收起=回缩淡出 180ms、内容级联 riseIn（块依次上浮，backwards 填充免与 hover 冲突）、Tab 胶囊 spring 落定、控件 :active 缩小 + 图标 dock 式提起 + 勾选 checkPop + 新增 itemIn（后两者 JS 一次性 class）；窗口本身仍零动画（防卡顿铁律）；prefers-reduced-motion 全局降级
