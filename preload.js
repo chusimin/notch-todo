@@ -11,4 +11,9 @@ contextBridge.exposeInMainWorld('notchAPI', {
   onEscape: (cb) => ipcRenderer.on('key:escape', () => cb()),
   onCollapse: (cb) => ipcRenderer.on('window:collapse', () => cb()),
   getMetrics: () => ipcRenderer.invoke('window:metrics'),
+  writeClipboard: (entry) => ipcRenderer.invoke('clipboard:write', entry),
+  readClipImage: (imagePath) => ipcRenderer.invoke('clipboard:readImage', imagePath),
+  deleteClipImages: (paths) => ipcRenderer.invoke('clipboard:deleteImages', paths),
+  onNewClipEntry: (cb) => ipcRenderer.on('clipboard:new-entry', (evt, entry) => cb(entry)),
+  onOpenClip: (cb) => ipcRenderer.on('app:open-clip', () => cb()),
 });

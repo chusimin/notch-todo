@@ -8,6 +8,8 @@ const {
   nativeImage,
   shell,
   systemPreferences,
+  clipboard,
+  globalShortcut,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -138,10 +140,20 @@ const TAB_SIZES = {
 const EXPANDED_CHROME_Y = 76;
 const SCREEN_MARGIN = 24; // 宽度超屏时两侧保留的安全边
 
+const CLIP_MAX_ITEMS = 100;
+const CLIP_POLL_INTERVAL_MS = 500;
+const CLIP_IMAGES_DIR_NAME = 'clipboard-images';
+const CLIP_SHORTCUT = 'CommandOrControl+Shift+V';
+
 let mainWindow = null;
 let tray = null;
 let currentMode = 'collapsed';
 let currentTab = 'home';
+
+let clipPollTimer = null;
+let clipPolling = false; // 互斥锁：大图 toPNG 同步耗时，防止上一轮未完成又进入
+let lastClipTextFingerprint = null;
+let lastClipImageFingerprint = null;
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -559,6 +571,165 @@ ipcMain.handle('apps:launch', (event, p) => {
   return false;
 });
 
+// ============ 剪贴板历史 ============
+
+function getClipImagesDir() {
+  return path.join(app.getPath('userData'), CLIP_IMAGES_DIR_NAME);
+}
+
+// 路径白名单：只放行图片目录内的文件，且加尾部分隔符，
+// 否则 startsWith 会误放行同名兄弟目录（.../clipboard-images-xxx）
+function isInsideClipDir(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) return false;
+  const dir = getClipImagesDir() + path.sep;
+  return p.startsWith(dir);
+}
+
+function ensureClipImagesDir() {
+  try {
+    fs.mkdirSync(getClipImagesDir(), { recursive: true });
+  } catch (e) {
+    // 目录已存在或无权限，静默
+  }
+}
+
+// 返回 { fingerprint, pngBuf } 或 null
+function readClipboardImage() {
+  try {
+    const image = clipboard.readImage();
+    if (image.isEmpty()) return null;
+    const size = image.getSize();
+    const pngBuf = image.toPNG();
+    const fingerprint = `${size.width}x${size.height}:${pngBuf.length}`;
+    return { fingerprint, pngBuf };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function pollClipboard() {
+  if (!mainWindow) return;
+  if (clipPolling) return;
+  clipPolling = true;
+  try {
+    // 密码管理器写入的敏感内容：跳过不记录、不更新指纹
+    const formats = clipboard.availableFormats();
+    if (formats.includes('org.nspasteboard.ConcealedType')) return;
+
+    // 优先读文字
+    const text = clipboard.readText();
+    if (text && text !== lastClipTextFingerprint) {
+      lastClipTextFingerprint = text;
+      lastClipImageFingerprint = null;
+      const type = /^https?:\/\//i.test(text.trim()) ? 'url' : 'text';
+      mainWindow.webContents.send('clipboard:new-entry', { type, text, imagePath: null });
+      return;
+    }
+
+    // 文字为空再读图片
+    if (!text) {
+      const result = readClipboardImage();
+      if (result && result.fingerprint !== lastClipImageFingerprint) {
+        const { fingerprint, pngBuf } = result;
+        lastClipImageFingerprint = fingerprint;
+        lastClipTextFingerprint = null;
+        ensureClipImagesDir();
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const fileName = 'clip-' + id + '.png';
+        const imagePath = path.join(getClipImagesDir(), fileName);
+        try {
+          await fs.promises.writeFile(imagePath, pngBuf);
+        } catch (e) {
+          return; // 写盘失败不记录
+        }
+        mainWindow.webContents.send('clipboard:new-entry', {
+          type: 'image',
+          text: null,
+          imagePath,
+        });
+      }
+    }
+  } catch (e) {
+    // 轮询任何异常不能崩主进程，静默
+  } finally {
+    clipPolling = false;
+  }
+}
+
+function startClipboardPolling() {
+  if (clipPollTimer) return;
+  clipPollTimer = setInterval(pollClipboard, CLIP_POLL_INTERVAL_MS);
+}
+
+function stopClipboardPolling() {
+  if (clipPollTimer) {
+    clearInterval(clipPollTimer);
+    clipPollTimer = null;
+  }
+}
+
+// 召唤类动作跟随光标屏（参考 toggleVisibility），唤出窗口后聚焦并通知渲染层打开剪贴板 Tab
+function registerClipboardShortcut() {
+  try {
+    globalShortcut.register(CLIP_SHORTCUT, () => {
+      if (!mainWindow) return;
+      const d = getTargetDisplay();
+      applyMode('expanded', d);
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('app:open-clip');
+    });
+  } catch (e) {
+    // 快捷键注册失败（被其他应用占用等），静默
+  }
+}
+
+// 渲染层请求把图片文件读成 dataURL 回显（contextIsolation 下 file:// 受限，走 IPC 读盘）
+ipcMain.handle('clipboard:readImage', async (event, imagePath) => {
+  if (!isInsideClipDir(imagePath)) return null; // 只允许读自己的图片目录
+  try {
+    const buf = await fs.promises.readFile(imagePath);
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  } catch (e) {
+    return null;
+  }
+});
+
+// FIFO 淘汰 / 删除 / 清空时，连带删除本地图片文件（文件 I/O 归主进程）
+ipcMain.handle('clipboard:deleteImages', async (event, paths) => {
+  if (!Array.isArray(paths)) return;
+  for (const p of paths) {
+    if (isInsideClipDir(p)) {
+      try {
+        await fs.promises.unlink(p);
+      } catch (e) {
+        // 文件已不存在等，静默
+      }
+    }
+  }
+});
+
+// 点击条目：写回系统剪贴板（用户再自行 Cmd+V）
+ipcMain.handle('clipboard:write', (event, entry) => {
+  if (!entry) return;
+  try {
+    if (entry.type === 'image' && isInsideClipDir(entry.imagePath)) {
+      const buf = fs.readFileSync(entry.imagePath);
+      const image = nativeImage.createFromBuffer(buf);
+      clipboard.writeImage(image);
+      const r = readClipboardImage(); // 写回后更新指纹，避免下轮轮询把自己写的再记一遍
+      if (r) lastClipImageFingerprint = r.fingerprint;
+      lastClipTextFingerprint = null;
+    } else if (entry.text) {
+      clipboard.writeText(entry.text);
+      lastClipTextFingerprint = entry.text;
+      lastClipImageFingerprint = null;
+    }
+  } catch (e) {
+    // ignore
+  }
+});
+
 function ensureFirstRunAutoLaunch() {
   // 首次运行时默认开启开机自启；之后尊重用户在托盘菜单的选择
   if (process.platform !== 'darwin') return;
@@ -596,6 +767,9 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   watchDisplayChanges();
+  ensureClipImagesDir();
+  startClipboardPolling();
+  registerClipboardShortcut();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -606,4 +780,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', (e) => {
   e.preventDefault();
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  stopClipboardPolling();
 });
