@@ -211,6 +211,22 @@ if (window.notchAPI && typeof window.notchAPI.onCollapse === 'function') {
   });
 }
 
+// 全局快捷键召唤：主进程已 applyMode('expanded')（瞬时放大窗口），
+// 渲染层只需同步展开态的类、切到剪贴板 Tab，不回发 window:set-mode（避免与主进程互相触发）。
+if (window.notchAPI && typeof window.notchAPI.onOpenClip === 'function') {
+  window.notchAPI.onOpenClip(() => {
+    if (!isExpanded) {
+      isExpanded = true;
+      app.classList.remove('collapsed', 'closing');
+      app.classList.add('expanded');
+      requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
+    }
+    // 已展开时 setActiveTab 会走 morphToTab 变形到 clip 尺寸；未展开时上面刚补好类，
+    // 此处切 Tab 同样安全（tabBusy/pendingTab 机制兜底连点竞态）。
+    setActiveTab('clip');
+  });
+}
+
 // 布局度量（主进程按屏计算下发）：折叠条高 / 菜单栏占位高 / 各 Tab 目标尺寸
 let layoutMetrics = null;
 
