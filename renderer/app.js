@@ -1104,6 +1104,15 @@ async function preloadClipImage(imagePath) {
   }
 }
 
+// 去重键：文字/链接按文本内容判重（图片每次复制写的是不同文件路径，
+// 渲染层拿不到内容指纹，暂只对文字/链接去重——恰好覆盖用户遇到的重复场景）。
+function clipDedupKey(entry) {
+  if (entry.type === 'text' || entry.type === 'url') {
+    return entry.text != null ? `t:${entry.text}` : null;
+  }
+  return null; // 图片不参与去重
+}
+
 async function addClipEntry(raw) {
   const id = generateId();
   const entry = {
@@ -1113,6 +1122,24 @@ async function addClipEntry(raw) {
     imagePath: raw.imagePath || null,
     timestamp: Date.now(),
   };
+
+  // 增量去重：重复内容以最新一次为准 —— 移除历史里的旧重复条，
+  // 新条置顶（时间自然刷新为"刚刚"）。若旧条被收藏，把收藏迁移到新条 id 上，收藏不丢。
+  const key = clipDedupKey(entry);
+  if (key) {
+    const dupIdx = clipHistory.findIndex((e) => clipDedupKey(e) === key);
+    if (dupIdx !== -1) {
+      const dup = clipHistory[dupIdx];
+      clipHistory.splice(dupIdx, 1);
+      const favPos = clipFavorites.indexOf(dup.id);
+      if (favPos !== -1) {
+        clipFavorites[favPos] = id; // 收藏迁移到新条目
+        saveClipFavorites(clipFavorites);
+        if (typeof renderClipFavs === 'function') renderClipFavs();
+      }
+    }
+  }
+
   clipHistory.unshift(entry);
 
   // FIFO 淘汰
