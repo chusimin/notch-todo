@@ -127,7 +127,7 @@ body {
 #app.collapsed .notch {
   height: 100vh;
   align-items: flex-end;
-  padding-bottom: 3px;
+  padding-bottom: 2px;
 }
 
 /* 展开态：刘海条退场（高 0），面板自身从屏幕最顶贴下、铺满整片黑，
@@ -140,21 +140,25 @@ body {
   border-radius: 0;
 }
 
+/* 折叠条高度 = 物理刘海高（不超出），黑条藏在刘海里几乎不可见。
+   靠这颗"抓握小药丸"露在刘海下沿作为唯一可见的可点提示：
+   常态就是一条提亮的短药丸（12px 宽），而非旧的 4px 暗点，
+   否则和纯黑刘海无从分辨、用户找不到折叠条在哪。 */
 .notch-dot {
-  width: 4px;
-  height: 4px;
+  width: 12px;
+  height: 3px;
   border-radius: 999px;
-  background: var(--text-4);
+  background: var(--text-3);
   transition:
     opacity 160ms var(--ease),
     width var(--d-base) var(--ease-spring),
     background var(--d-fast) var(--ease);
 }
 
-/* 折叠态 hover：圆点拉成小药丸 + 提亮，作为"可下拉"的抓握暗示 */
+/* 折叠态 hover：药丸变长 + 进一步提亮，作为"可下拉"的抓握暗示 */
 #app.collapsed .notch:hover .notch-dot {
-  width: 24px;
-  background: var(--text-2);
+  width: 28px;
+  background: var(--text-1);
 }
 
 #app.expanded .notch-dot {
