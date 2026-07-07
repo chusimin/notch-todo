@@ -344,6 +344,8 @@ async function setActiveTab(name) {
     if (name !== 'home') stopMirror();
     // 应用 Tab 需要列表；首页的快捷应用模块同样需要图标数据（主进程有缓存与在途去重）
     if (name === 'apps' || name === 'home') ensureAppsLoaded();
+    // 首页：刷新收藏剪贴块（数据可能在其它 Tab 变动过）
+    if (name === 'home') renderClipFavs();
     // 剪贴板 Tab：切入时刷新列表（renderClipList 内部处理按需图片预加载）
     if (name === 'clip') renderClipList();
     if (isExpanded) {
@@ -942,6 +944,97 @@ if (quickappsAddBtn) {
   });
 }
 
+// ============ 首页 · 收藏剪贴 ============
+const clipfavListEl = document.getElementById('clipfav-list');
+
+function renderClipFavs() {
+  if (!clipfavListEl) return;
+
+  // 按 clipFavorites 顺序取条目（过滤掉已删的）
+  const favEntries = clipFavorites
+    .map((id) => clipHistory.find((e) => e.id === id))
+    .filter(Boolean);
+
+  if (!favEntries.length) {
+    clipfavListEl.innerHTML =
+      '<button class="clipfav-empty" type="button" data-action="goto-clip">' +
+      '去"剪贴板"Tab 给常用记录加星 →' +
+      '</button>';
+    return;
+  }
+
+  // 渲染每条收藏
+  clipfavListEl.innerHTML = favEntries
+    .map((entry) => {
+      const safeId = escapeHtml(entry.id);
+
+      if (entry.type === 'image') {
+        const dataUrl = entry.imagePath ? clipImageCache.get(entry.imagePath) : null;
+        const mediaHtml = dataUrl
+          ? `<img class="clipfav-thumb" src="${escapeHtml(dataUrl)}" alt="图片" draggable="false"/>`
+          : `<div class="clipfav-thumb-placeholder">图</div>`;
+        return (
+          `<div class="clipfav-item clip-type-image" data-id="${safeId}" role="button" tabindex="0" title="图片">` +
+          mediaHtml +
+          `<span class="clipfav-text">图片</span>` +
+          `</div>`
+        );
+      }
+
+      // text | url
+      const isUrl = entry.type === 'url' || (entry.text && CLIP_URL_RE.test(entry.text));
+      const typeClass = isUrl ? 'clip-type-url' : 'clip-type-text';
+      let preview = entry.text || '';
+      if (isUrl) {
+        try {
+          preview = new URL(entry.text).hostname || entry.text;
+        } catch (_) {
+          preview = entry.text || '';
+        }
+      }
+      const safePreview = escapeHtml(preview);
+      const safeTitle = escapeHtml(entry.text || '');
+      return (
+        `<div class="clipfav-item ${typeClass}" data-id="${safeId}" role="button" tabindex="0" title="${safeTitle}">` +
+        `<span class="clipfav-text">${safePreview}</span>` +
+        `</div>`
+      );
+    })
+    .join('');
+
+  // 按需预加载图片缩略图（命中后二次渲染刷新）
+  const missingImageEntries = favEntries.filter(
+    (e) => e.type === 'image' && e.imagePath && !clipImageCache.has(e.imagePath)
+  );
+  if (missingImageEntries.length > 0) {
+    Promise.all(missingImageEntries.map((e) => preloadClipImage(e.imagePath))).then(() => {
+      const anyLoaded = missingImageEntries.some((e) => clipImageCache.has(e.imagePath));
+      if (anyLoaded) renderClipFavs();
+    });
+  }
+}
+
+if (clipfavListEl) {
+  clipfavListEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // 空态：跳转 clip Tab
+    if (e.target.closest('[data-action="goto-clip"]')) {
+      setActiveTab('clip');
+      return;
+    }
+    // 条目点击：复制
+    const item = e.target.closest('.clipfav-item[data-id]');
+    if (item) {
+      const id = item.dataset.id;
+      // 复制写回系统剪贴板
+      copyClipEntry(id);
+      // copied 反馈：也在首页显示
+      item.classList.add('copied');
+      setTimeout(() => item.classList.remove('copied'), 800);
+    }
+  });
+}
+
 // ============ 剪贴板历史 ============
 const CLIP_HISTORY_KEY = 'notch-clip-history';
 const CLIP_FAV_KEY = 'notch-clip-favorites';
@@ -1186,6 +1279,7 @@ function toggleClipFavorite(id) {
   }
   saveClipFavorites(clipFavorites);
   renderClipList();
+  renderClipFavs();
 }
 
 function deleteClipEntry(id) {
@@ -1203,6 +1297,7 @@ function deleteClipEntry(id) {
     }
   }
   renderClipList();
+  renderClipFavs();
 }
 
 function clearClipHistory() {
@@ -1218,6 +1313,7 @@ function clearClipHistory() {
     window.notchAPI.deleteClipImages(imagePaths).catch(() => {});
   }
   renderClipList();
+  renderClipFavs();
 }
 
 function copyClipEntry(id) {
@@ -1244,4 +1340,5 @@ if (window.notchAPI && typeof window.notchAPI.onNewClipEntry === 'function') {
 renderAll();
 renderApps(); // 首屏先画快捷应用（空态/字母兜底），图标随 ensureAppsLoaded 就绪后刷新
 renderClipList(); // 首屏确保 clip-list DOM 就绪时渲染一次（幂等）
+renderClipFavs(); // 首屏渲染收藏剪贴块
 initTab();

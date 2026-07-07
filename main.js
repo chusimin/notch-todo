@@ -134,7 +134,7 @@ const COLLAPSED_MIN_HEIGHT = 38;
 // Per-tab 展开尺寸：窗口从屏幕最顶垂下（y=0），内容直接顶到屏幕最上沿，不补菜单栏黑带。
 // 总高 = EXPANDED_CHROME_Y + panelHeight
 const TAB_SIZES = {
-  home: { width: 980, panelHeight: 196 }, // 横向 HUD 条
+  home: { width: 980, panelHeight: 316 }, // 两行 bento：上排 HUD + 下排收藏剪贴
   todo: { width: 1080, panelHeight: 300 }, // 四列并排
   clip: { width: 1100, panelHeight: 400 }, // 剪贴板:夹在 todo(1080) 与 apps(1120) 之间,保持宽度严格有序(morphToTab 依赖)
   apps: { width: 1120, panelHeight: 540 }, // 大网格
