@@ -1067,7 +1067,7 @@ function clipEntryHtml(entry, faved) {
     const thumbHtml = dataUrl
       ? `<img class="clip-thumb" src="${escapeHtml(dataUrl)}" alt="图片" draggable="false"/>`
       : `<div class="clip-thumb-placeholder">图片加载中…</div>`;
-    return `<div class="clip-item clip-item-image" data-id="${safeId}" data-action="copy">
+    return `<div class="clip-item clip-item-image clip-type-image" data-id="${safeId}" data-action="copy">
   <div class="clip-thumb-wrap">${thumbHtml}</div>
   <div class="clip-meta"><span class="clip-type-badge clip-badge-image">图片</span><span class="clip-time">${timeStr}</span></div>
   <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
@@ -1078,8 +1078,9 @@ function clipEntryHtml(entry, faved) {
   // text | url 条目
   const safeText = escapeHtml(entry.text || '');
   const isUrl = entry.type === 'url' || (entry.text && CLIP_URL_RE.test(entry.text));
+  const typeClass = isUrl ? 'clip-type-url' : 'clip-type-text';
   const badgeHtml = isUrl ? '<span class="clip-type-badge clip-badge-url">链接</span>' : '';
-  return `<div class="clip-item clip-item-text" data-id="${safeId}" data-action="copy">
+  return `<div class="clip-item clip-item-text ${typeClass}" data-id="${safeId}" data-action="copy">
   <p class="clip-text">${safeText}</p>
   <div class="clip-meta">${badgeHtml}<span class="clip-time">${timeStr}</span></div>
   <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
