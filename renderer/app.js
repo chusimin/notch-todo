@@ -328,6 +328,8 @@ async function setActiveTab(name) {
     if (name !== 'home') stopMirror();
     // 应用 Tab 需要列表；首页的快捷应用模块同样需要图标数据（主进程有缓存与在途去重）
     if (name === 'apps' || name === 'home') ensureAppsLoaded();
+    // 剪贴板 Tab：切入时刷新列表（renderClipList 内部处理按需图片预加载）
+    if (name === 'clip') renderClipList();
     if (isExpanded) {
       await morphToTab(name);
     } else {
@@ -924,6 +926,305 @@ if (quickappsAddBtn) {
   });
 }
 
+// ============ 剪贴板历史 ============
+const CLIP_HISTORY_KEY = 'notch-clip-history';
+const CLIP_FAV_KEY = 'notch-clip-favorites';
+const CLIP_MAX = 100;
+const CLIP_URL_RE = /^https?:\/\//i;
+
+function loadClipHistory() {
+  try {
+    const raw = localStorage.getItem(CLIP_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveClipHistory(list) {
+  try {
+    localStorage.setItem(CLIP_HISTORY_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore quota errors
+  }
+}
+
+function loadClipFavorites() {
+  try {
+    const raw = localStorage.getItem(CLIP_FAV_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => typeof p === 'string');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveClipFavorites(list) {
+  try {
+    localStorage.setItem(CLIP_FAV_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore quota errors
+  }
+}
+
+let clipHistory = loadClipHistory();
+let clipFavorites = loadClipFavorites();
+let clipFilter = 'all'; // all | text | image | faved
+const clipImageCache = new Map(); // imagePath -> dataUrl，仅内存
+
+const clipListEl = document.getElementById('clip-list');
+const clipToolbarEl = document.getElementById('clip-toolbar');
+
+// 防重入标志：renderClipList 内按需图片预加载完成后的二次渲染
+let clipRenderPending = false;
+
+async function preloadClipImage(imagePath) {
+  if (!imagePath) return;
+  if (clipImageCache.has(imagePath)) return;
+  if (!window.notchAPI || typeof window.notchAPI.readClipImage !== 'function') return;
+  try {
+    const dataUrl = await window.notchAPI.readClipImage(imagePath);
+    if (dataUrl) clipImageCache.set(imagePath, dataUrl);
+  } catch (e) {
+    // ignore read errors
+  }
+}
+
+async function addClipEntry(raw) {
+  const id = generateId();
+  const entry = {
+    id,
+    type: raw.type || 'text',
+    text: raw.text || null,
+    imagePath: raw.imagePath || null,
+    timestamp: Date.now(),
+  };
+  clipHistory.unshift(entry);
+
+  // FIFO 淘汰
+  if (clipHistory.length > CLIP_MAX) {
+    const evicted = clipHistory.splice(CLIP_MAX);
+    const evictedPaths = evicted
+      .filter((e) => e.type === 'image' && e.imagePath)
+      .map((e) => e.imagePath);
+    if (evictedPaths.length > 0) {
+      if (window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
+        window.notchAPI.deleteClipImages(evictedPaths).catch(() => {});
+      }
+      evictedPaths.forEach((p) => clipImageCache.delete(p));
+    }
+  }
+
+  saveClipHistory(clipHistory);
+
+  // 图片条目预加载缩略图
+  if (entry.type === 'image' && entry.imagePath) {
+    await preloadClipImage(entry.imagePath);
+  }
+
+  renderClipList();
+}
+
+function formatClipTime(ts) {
+  const now = Date.now();
+  const diff = now - ts;
+  if (diff < 60 * 1000) return '刚刚';
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} 分钟前`;
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} 小时前`;
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function clipEntryHtml(entry, faved) {
+  const favClass = faved ? ' faved' : '';
+  const star = faved ? starFilledSvg : starOutlineSvg;
+  const timeStr = escapeHtml(formatClipTime(entry.timestamp));
+  const safeId = escapeHtml(entry.id);
+
+  if (entry.type === 'image') {
+    const dataUrl = entry.imagePath ? clipImageCache.get(entry.imagePath) : null;
+    const thumbHtml = dataUrl
+      ? `<img class="clip-thumb" src="${escapeHtml(dataUrl)}" alt="图片" draggable="false"/>`
+      : `<div class="clip-thumb-placeholder">图片加载中…</div>`;
+    return `<div class="clip-item clip-item-image" data-id="${safeId}" data-action="copy">
+  <div class="clip-thumb-wrap">${thumbHtml}</div>
+  <div class="clip-meta"><span class="clip-type-badge clip-badge-image">图片</span><span class="clip-time">${timeStr}</span></div>
+  <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
+  <button class="clip-del-btn" data-action="delete" aria-label="删除">×</button>
+</div>`;
+  }
+
+  // text | url 条目
+  const safeText = escapeHtml(entry.text || '');
+  const isUrl = entry.type === 'url' || (entry.text && CLIP_URL_RE.test(entry.text));
+  const badgeHtml = isUrl ? '<span class="clip-type-badge clip-badge-url">链接</span>' : '';
+  return `<div class="clip-item clip-item-text" data-id="${safeId}" data-action="copy">
+  <p class="clip-text">${safeText}</p>
+  <div class="clip-meta">${badgeHtml}<span class="clip-time">${timeStr}</span></div>
+  <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
+  <button class="clip-del-btn" data-action="delete" aria-label="删除">×</button>
+</div>`;
+}
+
+function getFilteredClipItems() {
+  if (clipFilter === 'all') return clipHistory;
+  if (clipFilter === 'text') return clipHistory.filter((e) => e.type === 'text' || e.type === 'url');
+  if (clipFilter === 'image') return clipHistory.filter((e) => e.type === 'image');
+  if (clipFilter === 'faved') {
+    const favSet = new Set(clipFavorites);
+    return clipHistory.filter((e) => favSet.has(e.id));
+  }
+  return clipHistory;
+}
+
+function renderClipList() {
+  if (!clipListEl) return;
+
+  const items = getFilteredClipItems();
+  const favSet = new Set(clipFavorites);
+
+  if (items.length === 0) {
+    clipListEl.innerHTML =
+      '<div class="clip-empty">' +
+      (clipHistory.length ? '没有符合条件的记录' : '复制点什么，历史会出现在这里') +
+      '</div>';
+    return;
+  }
+
+  clipListEl.innerHTML = items.map((e) => clipEntryHtml(e, favSet.has(e.id))).join('');
+
+  // 按需预加载图片：收集当前 items 里 cache 未命中的 image 条目
+  if (clipRenderPending) return; // 防重入：已有预加载任务在途
+  const missingPaths = items
+    .filter((e) => e.type === 'image' && e.imagePath && !clipImageCache.has(e.imagePath))
+    .map((e) => e.imagePath);
+
+  if (missingPaths.length === 0) return;
+
+  clipRenderPending = true;
+  Promise.all(missingPaths.map((p) => preloadClipImage(p)))
+    .then(() => {
+      clipRenderPending = false;
+      // 只有至少有一条路径成功填入 cache 才重渲，避免无意义刷新
+      const anyLoaded = missingPaths.some((p) => clipImageCache.has(p));
+      if (anyLoaded) renderClipList();
+    })
+    .catch(() => {
+      clipRenderPending = false;
+    });
+}
+
+// ---- 工具栏事件委托 ----
+if (clipToolbarEl) {
+  clipToolbarEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const filterBtn = e.target.closest('.clip-filter');
+    if (filterBtn) {
+      clipFilter = filterBtn.dataset.filter || 'all';
+      clipToolbarEl.querySelectorAll('.clip-filter').forEach((b) => b.classList.remove('active'));
+      filterBtn.classList.add('active');
+      renderClipList();
+      return;
+    }
+    if (e.target.closest('#clip-clear-btn')) {
+      clearClipHistory();
+    }
+  });
+}
+
+// ---- 列表事件委托 ----
+if (clipListEl) {
+  clipListEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const item = e.target.closest('.clip-item');
+    if (!item) return;
+    const id = item.dataset.id;
+    if (!id) return;
+
+    // 优先判断子按钮
+    if (e.target.closest('.clip-fav-btn')) {
+      toggleClipFavorite(id);
+      return;
+    }
+    if (e.target.closest('.clip-del-btn')) {
+      deleteClipEntry(id);
+      return;
+    }
+    // 点条目本体：复制
+    copyClipEntry(id);
+  });
+}
+
+function toggleClipFavorite(id) {
+  const idx = clipFavorites.indexOf(id);
+  if (idx === -1) {
+    clipFavorites.push(id);
+  } else {
+    clipFavorites.splice(idx, 1);
+  }
+  saveClipFavorites(clipFavorites);
+  renderClipList();
+}
+
+function deleteClipEntry(id) {
+  const idx = clipHistory.findIndex((e) => e.id === id);
+  if (idx === -1) return;
+  const entry = clipHistory[idx];
+  clipHistory.splice(idx, 1);
+  clipFavorites = clipFavorites.filter((fid) => fid !== id);
+  saveClipHistory(clipHistory);
+  saveClipFavorites(clipFavorites);
+  if (entry.type === 'image' && entry.imagePath) {
+    clipImageCache.delete(entry.imagePath);
+    if (window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
+      window.notchAPI.deleteClipImages([entry.imagePath]).catch(() => {});
+    }
+  }
+  renderClipList();
+}
+
+function clearClipHistory() {
+  const imagePaths = clipHistory
+    .filter((e) => e.type === 'image' && e.imagePath)
+    .map((e) => e.imagePath);
+  clipHistory = [];
+  clipFavorites = [];
+  clipImageCache.clear();
+  saveClipHistory([]);
+  saveClipFavorites([]);
+  if (imagePaths.length > 0 && window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
+    window.notchAPI.deleteClipImages(imagePaths).catch(() => {});
+  }
+  renderClipList();
+}
+
+function copyClipEntry(id) {
+  const entry = clipHistory.find((e) => e.id === id);
+  if (!entry) return;
+  if (window.notchAPI && typeof window.notchAPI.writeClipboard === 'function') {
+    window.notchAPI.writeClipboard(entry).catch(() => {});
+  }
+  // 视觉反馈：800ms 后移除 copied 类
+  const itemEl = clipListEl && clipListEl.querySelector(`.clip-item[data-id="${CSS.escape(id)}"]`);
+  if (itemEl) {
+    itemEl.classList.add('copied');
+    setTimeout(() => itemEl.classList.remove('copied'), 800);
+  }
+}
+
+// ---- IPC 推送监听 ----
+if (window.notchAPI && typeof window.notchAPI.onNewClipEntry === 'function') {
+  window.notchAPI.onNewClipEntry((raw) => {
+    addClipEntry(raw);
+  });
+}
+
 renderAll();
 renderApps(); // 首屏先画快捷应用（空态/字母兜底），图标随 ensureAppsLoaded 就绪后刷新
+renderClipList(); // 首屏确保 clip-list DOM 就绪时渲染一次（幂等）
 initTab();
