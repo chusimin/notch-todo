@@ -130,6 +130,7 @@ const NOTCH_LIP = 6; // 折叠黑条在菜单栏下露出的唇边（可点击�
 const TAB_SIZES = {
   home: { width: 980, panelHeight: 196 }, // 横向 HUD 条
   todo: { width: 1080, panelHeight: 300 }, // 四列并排
+  clip: { width: 1100, panelHeight: 400 }, // 剪贴板:夹在 todo(1080) 与 apps(1120) 之间,保持宽度严格有序(morphToTab 依赖)
   apps: { width: 1120, panelHeight: 540 }, // 大网格
 };
 // 与渲染层结构常量对应：panel padding-top(--s-2 8) + 顶栏(--topbar-h 40)

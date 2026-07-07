@@ -232,7 +232,7 @@ if (window.notchAPI && typeof window.notchAPI.getMetrics === 'function') {
 
 // ============ Tab 切换 ============
 const TAB_KEY = 'notch-active-tab';
-const TABS = ['home', 'todo', 'apps'];
+const TABS = ['home', 'todo', 'clip', 'apps'];
 const tabButtons = Array.from(document.querySelectorAll('.tab'));
 const tabPanels = Array.from(document.querySelectorAll('.tab-panel'));
 const tabIndicator = document.getElementById('tab-indicator');
