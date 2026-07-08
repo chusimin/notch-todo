@@ -218,9 +218,7 @@ body {
   will-change: transform, opacity;
   transition:
     opacity var(--d-fast) var(--ease-out),
-    transform var(--d-fast) var(--ease-out),
-    width 200ms var(--ease-soft),
-    height 200ms var(--ease-soft);
+    transform var(--d-fast) var(--ease-out);
 }
 
 /* 展开：面板从刘海垂下并落定（scale 0.96→1 + 下移归位，expo-out 大手势） */
@@ -230,9 +228,7 @@ body {
   transform: translateY(0) scale(1);
   transition:
     opacity 220ms var(--ease-out) 20ms,
-    transform var(--d-grand) var(--ease-out),
-    width 200ms var(--ease-soft),
-    height 200ms var(--ease-soft);
+    transform var(--d-grand) var(--ease-out);
 }
 
 /* 收起退场：面板回缩进刘海（窗口还保持展开尺寸，先播退场再瞬时缩窗） */
@@ -420,6 +416,7 @@ body {
   opacity: 0;
   pointer-events: none;
   transform: translateY(6px);
+  will-change: opacity, transform; /* 合成层：切 Tab 淡入仅在 GPU 层合成，不触发主线程重排 */
   transition:
     opacity var(--d-fast) var(--ease),
     transform var(--d-fast) var(--ease);

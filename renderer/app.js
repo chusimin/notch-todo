@@ -283,10 +283,10 @@ async function ipcSetTab(name) {
   }
 }
 
-// 展开态切 Tab：窗口瞬时贴新尺寸（系统动画 resize 卡顿，弃用），
-// 面板锁定当前 px → CSS 过渡到目标 px 桥接视觉。
+// 展开态切 Tab：窗口与面板均瞬时贴新尺寸（无 width/height 补间，零重排），
+// 视觉桥接改为内容交叉淡入（opacity/translateY，纯合成层，GPU 完成，不触发 reflow）。
 // 三档尺寸严格有序（home < todo < apps），放大先变窗（透明区域不可见）、
-// 缩小后变窗（裁切不可见），补间永远发生在"窗口足够大"的一侧。
+// 缩小后变窗（裁切不可见），时序意图保留，只是补间方式从 width/height→合成层淡入。
 async function morphToTab(name) {
   const m = layoutMetrics;
   const size = m && m.tabSizes && m.tabSizes[name];
@@ -297,30 +297,18 @@ async function morphToTab(name) {
   }
   const availW = window.screen && window.screen.availWidth ? window.screen.availWidth : size.width + 24;
   const targetW = Math.min(size.width, availW - 24);
-  // 窗口从屏幕最顶垂下、内容顶到上沿：目标高 = 顶栏结构高 + 内容高，与主进程 getExpandedSize 一致
-  const targetH = (m.chromeY || 76) + size.panelHeight;
-  const rect = panel.getBoundingClientRect();
-  const growing = targetW >= rect.width;
-  // flex:1 会无视行内 height，补间期间临时退出弹性布局
-  panel.style.flex = '0 0 auto';
-  panel.style.width = `${rect.width}px`;
-  panel.style.height = `${rect.height}px`;
-  void panel.offsetWidth; // 锁定起点，确保过渡生效
-  applyTabDom(name); // 内容交叉淡入与尺寸补间并行
+  const growing = targetW >= window.innerWidth;
   if (growing) {
+    // 放大：先瞬时扩大窗口（透明溢出区不可见），再切内容淡入
     await ipcSetTab(name);
-    panel.style.width = `${targetW}px`;
-    panel.style.height = `${targetH}px`;
-    await wait(210);
+    applyTabDom(name); // 内容交叉淡入（.tab-panel active 切换 + riseIn，GPU 合成层）
+    await wait(150);   // 与 .tab-panel.active 淡入过渡 220ms 大致重叠，留余量即可
   } else {
-    panel.style.width = `${targetW}px`;
-    panel.style.height = `${targetH}px`;
-    await wait(210);
+    // 缩小：先切内容淡入，再瞬时收缩窗口（裁切发生在新内容已显示之后）
+    applyTabDom(name);
+    await wait(150);   // 等内容淡入完成后再缩窗，避免裁切闪烁
     await ipcSetTab(name);
   }
-  panel.style.flex = '';
-  panel.style.width = '';
-  panel.style.height = '';
   positionIndicator();
 }
 
