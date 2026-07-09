@@ -138,6 +138,9 @@ function deleteTodo(priority, id) {
 
 let isExpanded = false;
 let modeBusy = false;
+// 从折叠态展开的瞬间置 true，--d-grand(340ms) 落定后自动清除；
+// setActiveTab 读取此标志决定是否延后重活，已展开态切 Tab 不受影响。
+let _justExpanded = false;
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -163,6 +166,11 @@ async function setMode(expanded) {
       app.classList.add('expanded');
       // 展开后面板从隐藏变为可见，tab 尺寸此时才可量，校准激活胶囊位置
       requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
+      // 标记"刚从折叠展开"——setActiveTab 会把重活延后到动画落定后再跑，
+      // 避免 apps 扫描 / 图片预加载与面板 scale 动画同帧竞争 GPU/CPU。
+      // 350ms ≈ --d-grand(340ms) + 10ms 余量，过后清除让切 Tab 恢复即时加载。
+      _justExpanded = true;
+      setTimeout(() => { _justExpanded = false; }, 350);
     } else {
       // 收起窗口即释放摄像头（禁止常驻）
       stopMirror();
@@ -330,12 +338,25 @@ async function setActiveTab(name) {
   try {
     // 离开首页即释放摄像头（隐私优先，禁止常驻）
     if (name !== 'home') stopMirror();
-    // 应用 Tab 需要列表；首页的快捷应用模块同样需要图标数据（主进程有缓存与在途去重）
-    if (name === 'apps' || name === 'home') ensureAppsLoaded();
-    // 首页：刷新收藏剪贴块（数据可能在其它 Tab 变动过）
-    if (name === 'home') renderClipFavs();
-    // 剪贴板 Tab：切入时刷新列表（renderClipList 内部处理按需图片预加载）
-    if (name === 'clip') renderClipList();
+    // 重活（apps 扫描 / 图片预加载）的调度策略：
+    //   - 已展开态切 Tab：_justExpanded=false → 立即执行，保持即时响应
+    //   - 从折叠态展开（_justExpanded=true）：延后到展开动画落定后（~350ms）再跑，
+    //     避免与面板 scale 手势争首帧 CPU/GPU，消除展开卡顿
+    // 注：ensureAppsLoaded 内部有缓存与在途去重，延后调用安全；
+    //     renderClipFavs/renderClipList 延后只是缩略图晚一点出现，可接受
+    const _tabNameForDeferred = name; // 闭包捕获当前目标 Tab
+    const runHeavyLoads = () => {
+      if (_tabNameForDeferred === 'apps' || _tabNameForDeferred === 'home') ensureAppsLoaded();
+      if (_tabNameForDeferred === 'home') renderClipFavs();
+      if (_tabNameForDeferred === 'clip') renderClipList();
+    };
+    if (_justExpanded) {
+      // 从折叠展开：双帧后再延 300ms，共约 330ms，让面板 scale 动画先走完
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(runHeavyLoads, 300)));
+    } else {
+      // 已展开态切 Tab：立即执行，无感知延迟
+      runHeavyLoads();
+    }
     if (isExpanded) {
       await morphToTab(name);
     } else {

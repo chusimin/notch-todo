@@ -206,7 +206,7 @@ body {
   border: 1px solid var(--hairline);
   border-top: none;
   border-radius: 0 0 var(--r-panel) var(--r-panel);
-  box-shadow: 0 26px 60px var(--panel-shadow);
+  box-shadow: 0 10px 28px var(--panel-shadow);
   padding: var(--s-2) var(--s-4) var(--s-4);
   display: flex;
   flex-direction: column;
@@ -443,24 +443,24 @@ body {
 .tab-panel.active .sections > *:nth-child(1),
 .tab-panel.active .apps-scroll > *:nth-child(2),
 .tab-panel.active .clip-panel > *:nth-child(1) {
-  animation-delay: 30ms;
+  animation-delay: 60ms;
 }
 .tab-panel.active .home-bento > *:nth-child(2),
 .tab-panel.active .sections > *:nth-child(2),
 .tab-panel.active .apps-scroll > *:nth-child(3),
 .tab-panel.active .clip-panel > *:nth-child(2) {
-  animation-delay: 78ms;
+  animation-delay: 108ms;
 }
 .tab-panel.active .home-bento > *:nth-child(3),
 .tab-panel.active .sections > *:nth-child(3) {
-  animation-delay: 126ms;
+  animation-delay: 156ms;
 }
 .tab-panel.active .home-bento > *:nth-child(4),
 .tab-panel.active .sections > *:nth-child(4) {
-  animation-delay: 174ms;
+  animation-delay: 204ms;
 }
 .tab-panel.active .home-bento > *:nth-child(5) {
-  animation-delay: 210ms;
+  animation-delay: 240ms;
 }
 
 @keyframes riseIn {
