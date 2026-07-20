@@ -958,6 +958,8 @@ const clipfavListEl = document.getElementById('clipfav-list');
 
 function renderClipFavs() {
   if (!clipfavListEl) return;
+  // 脏标记：clipHistory / clipFavorites / clipImageCache 均未变则跳过重建
+  if (clipDataVersion === lastRenderedFavsVersion) return;
 
   // 按 clipFavorites 顺序取条目（过滤掉已删的）
   const favEntries = clipFavorites
@@ -969,6 +971,7 @@ function renderClipFavs() {
       '<button class="clipfav-empty" type="button" data-action="goto-clip">' +
       '去"剪贴板"Tab 给常用记录加星 →' +
       '</button>';
+    lastRenderedFavsVersion = clipDataVersion; // 空态也标记已渲染
     return;
   }
 
@@ -1010,8 +1013,10 @@ function renderClipFavs() {
       );
     })
     .join('');
+  lastRenderedFavsVersion = clipDataVersion; // 标记本次渲染版本
 
   // 按需预加载图片缩略图（命中后二次渲染刷新）
+  // preloadClipImage 会自增 clipDataVersion，确保二次渲染不被脏标记挡掉
   const missingImageEntries = favEntries.filter(
     (e) => e.type === 'image' && e.imagePath && !clipImageCache.has(e.imagePath)
   );
@@ -1095,6 +1100,13 @@ let clipFavorites = loadClipFavorites();
 let clipFilter = 'all'; // all | text | image | faved
 const clipImageCache = new Map(); // imagePath -> dataUrl，仅内存
 
+// 脏标记 —— 单调递增版本号：凡影响 renderClipList / renderClipFavs 输出的变更都自增。
+// 宁可多自增（多一次重建）也不能漏（界面不更新）。
+// 注意：preloadClipImage 在图片入缓存后也要自增，确保二次渲染不被脏标记挡掉。
+let clipDataVersion = 0;
+let lastRenderedClipVersion = -1; // renderClipList 上次渲染时的版本号
+let lastRenderedFavsVersion = -1; // renderClipFavs 上次渲染时的版本号
+
 const clipListEl = document.getElementById('clip-list');
 const clipToolbarEl = document.getElementById('clip-toolbar');
 
@@ -1107,7 +1119,10 @@ async function preloadClipImage(imagePath) {
   if (!window.notchAPI || typeof window.notchAPI.readClipImage !== 'function') return;
   try {
     const dataUrl = await window.notchAPI.readClipImage(imagePath);
-    if (dataUrl) clipImageCache.set(imagePath, dataUrl);
+    if (dataUrl) {
+      clipImageCache.set(imagePath, dataUrl);
+      clipDataVersion++; // 图片入缓存 → 版本自增，确保二次渲染不被脏标记挡掉（缩略图必须显示）
+    }
   } catch (e) {
     // ignore read errors
   }
@@ -1144,6 +1159,7 @@ async function addClipEntry(raw) {
       if (favPos !== -1) {
         clipFavorites[favPos] = id; // 收藏迁移到新条目
         saveClipFavorites(clipFavorites);
+        clipDataVersion++; // clipFavorites 已变（收藏迁移）
         if (typeof renderClipFavs === 'function') renderClipFavs();
       }
     }
@@ -1172,6 +1188,7 @@ async function addClipEntry(raw) {
     await preloadClipImage(entry.imagePath);
   }
 
+  clipDataVersion++; // clipHistory 已变（含 FIFO 淘汰、dedup 移除）
   renderClipList();
 }
 
@@ -1230,6 +1247,8 @@ function getFilteredClipItems() {
 
 function renderClipList() {
   if (!clipListEl) return;
+  // 脏标记：数据/过滤器/图片缓存均未变则跳过全量重建
+  if (clipDataVersion === lastRenderedClipVersion) return;
 
   const items = getFilteredClipItems();
   const favSet = new Set(clipFavorites);
@@ -1239,12 +1258,15 @@ function renderClipList() {
       '<div class="clip-empty">' +
       (clipHistory.length ? '没有符合条件的记录' : '复制点什么，历史会出现在这里') +
       '</div>';
+    lastRenderedClipVersion = clipDataVersion; // 空态也标记已渲染
     return;
   }
 
   clipListEl.innerHTML = items.map((e) => clipEntryHtml(e, favSet.has(e.id))).join('');
+  lastRenderedClipVersion = clipDataVersion; // 标记本次渲染版本（在预加载之前）
 
   // 按需预加载图片：收集当前 items 里 cache 未命中的 image 条目
+  // preloadClipImage 成功后自增 clipDataVersion，确保二次渲染不被脏标记挡掉
   if (clipRenderPending) return; // 防重入：已有预加载任务在途
   const missingPaths = items
     .filter((e) => e.type === 'image' && e.imagePath && !clipImageCache.has(e.imagePath))
@@ -1274,6 +1296,7 @@ if (clipToolbarEl) {
       clipFilter = filterBtn.dataset.filter || 'all';
       clipToolbarEl.querySelectorAll('.clip-filter').forEach((b) => b.classList.remove('active'));
       filterBtn.classList.add('active');
+      clipDataVersion++; // clipFilter 已变 → 输出变化
       renderClipList();
       return;
     }
@@ -1313,6 +1336,7 @@ function toggleClipFavorite(id) {
   } else {
     clipFavorites.splice(idx, 1);
   }
+  clipDataVersion++; // clipFavorites 已变
   saveClipFavorites(clipFavorites);
   renderClipList();
   renderClipFavs();
@@ -1324,6 +1348,7 @@ function deleteClipEntry(id) {
   const entry = clipHistory[idx];
   clipHistory.splice(idx, 1);
   clipFavorites = clipFavorites.filter((fid) => fid !== id);
+  clipDataVersion++; // clipHistory + clipFavorites 已变
   saveClipHistory(clipHistory);
   saveClipFavorites(clipFavorites);
   if (entry.type === 'image' && entry.imagePath) {
@@ -1343,6 +1368,7 @@ function clearClipHistory() {
   clipHistory = [];
   clipFavorites = [];
   clipImageCache.clear();
+  clipDataVersion++; // 全部数据已清空
   saveClipHistory([]);
   saveClipFavorites([]);
   if (imagePaths.length > 0 && window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {

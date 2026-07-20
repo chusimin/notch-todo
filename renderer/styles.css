@@ -416,10 +416,15 @@ body {
   opacity: 0;
   pointer-events: none;
   transform: translateY(6px);
-  will-change: opacity, transform; /* 合成层：切 Tab 淡入仅在 GPU 层合成，不触发主线程重排 */
+  /* will-change 已删：4 个面板常驻合成层吃显存，动画期间浏览器会自动提升，不需要常驻声明 */
   transition:
     opacity var(--d-fast) var(--ease),
     transform var(--d-fast) var(--ease);
+}
+
+/* 非激活面板跳过子树布局/绘制，切 Tab 时仅付 1 份排版成本而非 4 份 */
+.tab-panel:not(.active) {
+  content-visibility: hidden;
 }
 
 .tab-panel.active {
