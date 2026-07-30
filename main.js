@@ -8,6 +8,8 @@ const {
   nativeImage,
   shell,
   systemPreferences,
+  clipboard,
+  globalShortcut,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -123,13 +125,18 @@ function createNotchTrayIcon() {
 
 const COLLAPSED_WIDTH = 200;
 const COLLAPSED_MIN_HEIGHT = 38;
-const NOTCH_LIP = 6; // 折叠黑条在菜单栏下露出的唇边（可点击展开），尽量贴近物理刘海、只留一线可点
+// NOTCH_LIP（原 6px 唇边）已移除：折叠条高度现在恰好等于菜单栏高（≈物理刘海高），
+// 一个像素都不超出物理刘海。虽然折叠条完全在菜单栏拦截带内，
+// 但本项目窗口使用 setAlwaysOnTop(true,'screen-saver') 级别，
+// 实测菜单栏不拦截该级别窗口的点击，折叠条仍可点击展开。
+// （见项目记忆 notch-top-geometry-constraint / commit f12aea1）
 
 // Per-tab 展开尺寸：窗口从屏幕最顶垂下（y=0），内容直接顶到屏幕最上沿，不补菜单栏黑带。
 // 总高 = EXPANDED_CHROME_Y + panelHeight
 const TAB_SIZES = {
-  home: { width: 980, panelHeight: 196 }, // 横向 HUD 条
+  home: { width: 980, panelHeight: 316 }, // 两行 bento：上排 HUD + 下排收藏剪贴
   todo: { width: 1080, panelHeight: 300 }, // 四列并排
+  clip: { width: 1100, panelHeight: 400 }, // 剪贴板:夹在 todo(1080) 与 apps(1120) 之间,保持宽度严格有序(morphToTab 依赖)
   apps: { width: 1120, panelHeight: 540 }, // 大网格
 };
 // 与渲染层结构常量对应：panel padding-top(--s-2 8) + 顶栏(--topbar-h 40)
@@ -137,10 +144,21 @@ const TAB_SIZES = {
 const EXPANDED_CHROME_Y = 76;
 const SCREEN_MARGIN = 24; // 宽度超屏时两侧保留的安全边
 
+const CLIP_MAX_ITEMS = 100;
+const CLIP_POLL_INTERVAL_MS = 500;
+const CLIP_IMAGES_DIR_NAME = 'clipboard-images';
+const CLIP_SHORTCUT = 'CommandOrControl+Shift+V';
+
 let mainWindow = null;
 let tray = null;
 let currentMode = 'collapsed';
 let currentTab = 'home';
+
+let clipPollTimer = null;
+let clipPolling = false; // 互斥锁：大图 toPNG 同步耗时，防止上一轮未完成又进入
+let lastClipTextFingerprint = null;
+let lastClipImageFingerprint = null;
+let clipShortcutRegistered = false; // 全局快捷键是否注册成功（被占用/系统拒绝时为 false，托盘菜单据此提示）
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -188,13 +206,17 @@ function getCenteredBounds(width, height, display) {
 }
 
 // macOS 菜单栏会拦截其高度带内的所有鼠标点击（即使窗口绘制在其上方），
-// 刘海屏机型菜单栏高约 37pt，折叠态必须在菜单栏下方露出一段"唇边"才可点击。
+// 刘海屏机型菜单栏高约 37pt，等于物理刘海高度。
 function getMenuBarHeight(display) {
   return Math.max(0, display.workArea.y - display.bounds.y);
 }
 
 function getCollapsedHeight(display) {
-  return Math.max(COLLAPSED_MIN_HEIGHT, getMenuBarHeight(display) + NOTCH_LIP);
+  const mb = getMenuBarHeight(display);
+  // 折叠条高度恰好等于菜单栏带（≈物理刘海高），一个像素都不超出物理刘海。
+  // 无刘海的外接屏 menuBarHeight 仍是真实菜单栏高，能正常露头；
+  // 异常取到 0 才回退兜底（COLLAPSED_MIN_HEIGHT = 38px）。
+  return mb > 0 ? mb : COLLAPSED_MIN_HEIGHT;
 }
 
 // 展开尺寸按当前 Tab 取值；宽度超出屏幕时 clamp 到工作区内。
@@ -329,6 +351,24 @@ function refreshTrayMenu() {
       click: () => applyMode(currentMode, getTargetDisplay()),
     },
     { type: 'separator' },
+    // 剪贴板召唤快捷键状态：成功时可点重设，失败（被占用/未授权）时提示原因
+    clipShortcutRegistered
+      ? { label: '剪贴板快捷键：⌘⇧V', enabled: false }
+      : {
+          label: '⚠️ 剪贴板快捷键未生效（被占用/未授权）',
+          click: () => {
+            const { dialog } = require('electron');
+            dialog.showMessageBox({
+              type: 'warning',
+              title: '全局快捷键未生效',
+              message: '⌘⇧V 未能注册为剪贴板召唤快捷键',
+              detail:
+                '可能原因：\n1. 被其他常驻应用占用（如剪贴板/输入法工具）\n2. macOS 未授权输入监控（系统设置 → 隐私与安全性 → 输入监控，勾选本应用后重启）\n\n仍可点击顶部刘海展开、手动切到「剪贴板」Tab。',
+              buttons: ['好'],
+            });
+          },
+        },
+    { type: 'separator' },
     {
       label: '开机自动启动',
       type: 'checkbox',
@@ -383,7 +423,7 @@ ipcMain.handle('window:set-mode', (event, mode) => {
 ipcMain.handle('window:metrics', () => {
   const d = getWindowDisplay();
   return {
-    stripHeight: getCollapsedHeight(d), // 折叠黑条总高（菜单栏 + 唇边）
+    stripHeight: getCollapsedHeight(d), // 折叠黑条总高（= 菜单栏高 = 物理刘海高，不含唇边）
     menuBarHeight: getMenuBarHeight(d), // 折叠态菜单栏带高（折叠条上半部分被其拦截）
     chromeY: EXPANDED_CHROME_Y, // 展开面板结构高（morphToTab 计算目标 px 用，不含菜单栏带）
     tabSizes: TAB_SIZES,
@@ -558,6 +598,170 @@ ipcMain.handle('apps:launch', (event, p) => {
   return false;
 });
 
+// ============ 剪贴板历史 ============
+
+function getClipImagesDir() {
+  return path.join(app.getPath('userData'), CLIP_IMAGES_DIR_NAME);
+}
+
+// 路径白名单：只放行图片目录内的文件，且加尾部分隔符，
+// 否则 startsWith 会误放行同名兄弟目录（.../clipboard-images-xxx）
+function isInsideClipDir(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) return false;
+  const dir = getClipImagesDir() + path.sep;
+  return p.startsWith(dir);
+}
+
+function ensureClipImagesDir() {
+  try {
+    fs.mkdirSync(getClipImagesDir(), { recursive: true });
+  } catch (e) {
+    // 目录已存在或无权限，静默
+  }
+}
+
+// 返回 { fingerprint, pngBuf } 或 null
+function readClipboardImage() {
+  try {
+    const image = clipboard.readImage();
+    if (image.isEmpty()) return null;
+    const size = image.getSize();
+    const pngBuf = image.toPNG();
+    const fingerprint = `${size.width}x${size.height}:${pngBuf.length}`;
+    return { fingerprint, pngBuf };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function pollClipboard() {
+  if (!mainWindow) return;
+  if (clipPolling) return;
+  clipPolling = true;
+  try {
+    // 密码管理器写入的敏感内容：跳过不记录、不更新指纹
+    const formats = clipboard.availableFormats();
+    if (formats.includes('org.nspasteboard.ConcealedType')) return;
+
+    // 优先读文字
+    const text = clipboard.readText();
+    if (text && text !== lastClipTextFingerprint) {
+      lastClipTextFingerprint = text;
+      lastClipImageFingerprint = null;
+      const type = /^https?:\/\//i.test(text.trim()) ? 'url' : 'text';
+      mainWindow.webContents.send('clipboard:new-entry', { type, text, imagePath: null });
+      return;
+    }
+
+    // 文字为空再读图片
+    if (!text) {
+      const result = readClipboardImage();
+      if (result && result.fingerprint !== lastClipImageFingerprint) {
+        const { fingerprint, pngBuf } = result;
+        lastClipImageFingerprint = fingerprint;
+        lastClipTextFingerprint = null;
+        ensureClipImagesDir();
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const fileName = 'clip-' + id + '.png';
+        const imagePath = path.join(getClipImagesDir(), fileName);
+        try {
+          await fs.promises.writeFile(imagePath, pngBuf);
+        } catch (e) {
+          return; // 写盘失败不记录
+        }
+        mainWindow.webContents.send('clipboard:new-entry', {
+          type: 'image',
+          text: null,
+          imagePath,
+        });
+      }
+    }
+  } catch (e) {
+    // 轮询任何异常不能崩主进程，静默
+  } finally {
+    clipPolling = false;
+  }
+}
+
+function startClipboardPolling() {
+  if (clipPollTimer) return;
+  clipPollTimer = setInterval(pollClipboard, CLIP_POLL_INTERVAL_MS);
+}
+
+function stopClipboardPolling() {
+  if (clipPollTimer) {
+    clearInterval(clipPollTimer);
+    clipPollTimer = null;
+  }
+}
+
+// 召唤类动作跟随光标屏（参考 toggleVisibility），唤出窗口后聚焦并通知渲染层打开剪贴板 Tab
+function registerClipboardShortcut() {
+  try {
+    // register 返回 false（或 isRegistered 为假）= 快捷键被占用/系统拒绝。
+    // 必须回读结果：静默失败会让用户「按了没反应还不知道为什么」。
+    const ok = globalShortcut.register(CLIP_SHORTCUT, () => {
+      if (!mainWindow) return;
+      const d = getTargetDisplay();
+      applyMode('expanded', d);
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('app:open-clip');
+    });
+    clipShortcutRegistered = ok && globalShortcut.isRegistered(CLIP_SHORTCUT);
+  } catch (e) {
+    clipShortcutRegistered = false;
+  }
+  refreshTrayMenu(); // 托盘菜单据此显示快捷键状态（成功/被占用）
+  return clipShortcutRegistered;
+}
+
+// 渲染层请求把图片文件读成 dataURL 回显（contextIsolation 下 file:// 受限，走 IPC 读盘）
+ipcMain.handle('clipboard:readImage', async (event, imagePath) => {
+  if (!isInsideClipDir(imagePath)) return null; // 只允许读自己的图片目录
+  try {
+    const buf = await fs.promises.readFile(imagePath);
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  } catch (e) {
+    return null;
+  }
+});
+
+// FIFO 淘汰 / 删除 / 清空时，连带删除本地图片文件（文件 I/O 归主进程）
+ipcMain.handle('clipboard:deleteImages', async (event, paths) => {
+  if (!Array.isArray(paths)) return;
+  for (const p of paths) {
+    if (isInsideClipDir(p)) {
+      try {
+        await fs.promises.unlink(p);
+      } catch (e) {
+        // 文件已不存在等，静默
+      }
+    }
+  }
+});
+
+// 点击条目：写回系统剪贴板（用户再自行 Cmd+V）
+ipcMain.handle('clipboard:write', (event, entry) => {
+  if (!entry) return;
+  try {
+    if (entry.type === 'image' && isInsideClipDir(entry.imagePath)) {
+      const buf = fs.readFileSync(entry.imagePath);
+      const image = nativeImage.createFromBuffer(buf);
+      clipboard.writeImage(image);
+      const r = readClipboardImage(); // 写回后更新指纹，避免下轮轮询把自己写的再记一遍
+      if (r) lastClipImageFingerprint = r.fingerprint;
+      lastClipTextFingerprint = null;
+    } else if (entry.text) {
+      clipboard.writeText(entry.text);
+      lastClipTextFingerprint = entry.text;
+      lastClipImageFingerprint = null;
+    }
+  } catch (e) {
+    // ignore
+  }
+});
+
 function ensureFirstRunAutoLaunch() {
   // 首次运行时默认开启开机自启；之后尊重用户在托盘菜单的选择
   if (process.platform !== 'darwin') return;
@@ -595,6 +799,9 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   watchDisplayChanges();
+  ensureClipImagesDir();
+  startClipboardPolling();
+  registerClipboardShortcut();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -605,4 +812,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', (e) => {
   e.preventDefault();
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  stopClipboardPolling();
 });

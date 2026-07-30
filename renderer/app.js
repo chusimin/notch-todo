@@ -138,6 +138,9 @@ function deleteTodo(priority, id) {
 
 let isExpanded = false;
 let modeBusy = false;
+// 从折叠态展开的瞬间置 true，--d-grand(340ms) 落定后自动清除；
+// setActiveTab 读取此标志决定是否延后重活，已展开态切 Tab 不受影响。
+let _justExpanded = false;
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -163,6 +166,11 @@ async function setMode(expanded) {
       app.classList.add('expanded');
       // 展开后面板从隐藏变为可见，tab 尺寸此时才可量，校准激活胶囊位置
       requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
+      // 标记"刚从折叠展开"——setActiveTab 会把重活延后到动画落定后再跑，
+      // 避免 apps 扫描 / 图片预加载与面板 scale 动画同帧竞争 GPU/CPU。
+      // 350ms ≈ --d-grand(340ms) + 10ms 余量，过后清除让切 Tab 恢复即时加载。
+      _justExpanded = true;
+      setTimeout(() => { _justExpanded = false; }, 350);
     } else {
       // 收起窗口即释放摄像头（禁止常驻）
       stopMirror();
@@ -211,6 +219,22 @@ if (window.notchAPI && typeof window.notchAPI.onCollapse === 'function') {
   });
 }
 
+// 全局快捷键召唤：主进程已 applyMode('expanded')（瞬时放大窗口），
+// 渲染层只需同步展开态的类、切到剪贴板 Tab，不回发 window:set-mode（避免与主进程互相触发）。
+if (window.notchAPI && typeof window.notchAPI.onOpenClip === 'function') {
+  window.notchAPI.onOpenClip(() => {
+    if (!isExpanded) {
+      isExpanded = true;
+      app.classList.remove('collapsed', 'closing');
+      app.classList.add('expanded');
+      requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
+    }
+    // 已展开时 setActiveTab 会走 morphToTab 变形到 clip 尺寸；未展开时上面刚补好类，
+    // 此处切 Tab 同样安全（tabBusy/pendingTab 机制兜底连点竞态）。
+    setActiveTab('clip');
+  });
+}
+
 // 布局度量（主进程按屏计算下发）：折叠条高 / 菜单栏占位高 / 各 Tab 目标尺寸
 let layoutMetrics = null;
 
@@ -232,7 +256,7 @@ if (window.notchAPI && typeof window.notchAPI.getMetrics === 'function') {
 
 // ============ Tab 切换 ============
 const TAB_KEY = 'notch-active-tab';
-const TABS = ['home', 'todo', 'apps'];
+const TABS = ['home', 'todo', 'clip', 'apps'];
 const tabButtons = Array.from(document.querySelectorAll('.tab'));
 const tabPanels = Array.from(document.querySelectorAll('.tab-panel'));
 const tabIndicator = document.getElementById('tab-indicator');
@@ -267,10 +291,10 @@ async function ipcSetTab(name) {
   }
 }
 
-// 展开态切 Tab：窗口瞬时贴新尺寸（系统动画 resize 卡顿，弃用），
-// 面板锁定当前 px → CSS 过渡到目标 px 桥接视觉。
+// 展开态切 Tab：窗口与面板均瞬时贴新尺寸（无 width/height 补间，零重排），
+// 视觉桥接改为内容交叉淡入（opacity/translateY，纯合成层，GPU 完成，不触发 reflow）。
 // 三档尺寸严格有序（home < todo < apps），放大先变窗（透明区域不可见）、
-// 缩小后变窗（裁切不可见），补间永远发生在"窗口足够大"的一侧。
+// 缩小后变窗（裁切不可见），时序意图保留，只是补间方式从 width/height→合成层淡入。
 async function morphToTab(name) {
   const m = layoutMetrics;
   const size = m && m.tabSizes && m.tabSizes[name];
@@ -281,30 +305,18 @@ async function morphToTab(name) {
   }
   const availW = window.screen && window.screen.availWidth ? window.screen.availWidth : size.width + 24;
   const targetW = Math.min(size.width, availW - 24);
-  // 窗口从屏幕最顶垂下、内容顶到上沿：目标高 = 顶栏结构高 + 内容高，与主进程 getExpandedSize 一致
-  const targetH = (m.chromeY || 76) + size.panelHeight;
-  const rect = panel.getBoundingClientRect();
-  const growing = targetW >= rect.width;
-  // flex:1 会无视行内 height，补间期间临时退出弹性布局
-  panel.style.flex = '0 0 auto';
-  panel.style.width = `${rect.width}px`;
-  panel.style.height = `${rect.height}px`;
-  void panel.offsetWidth; // 锁定起点，确保过渡生效
-  applyTabDom(name); // 内容交叉淡入与尺寸补间并行
+  const growing = targetW >= window.innerWidth;
   if (growing) {
+    // 放大：先瞬时扩大窗口（透明溢出区不可见），再切内容淡入
     await ipcSetTab(name);
-    panel.style.width = `${targetW}px`;
-    panel.style.height = `${targetH}px`;
-    await wait(210);
+    applyTabDom(name); // 内容交叉淡入（.tab-panel active 切换 + riseIn，GPU 合成层）
+    await wait(150);   // 与 .tab-panel.active 淡入过渡 220ms 大致重叠，留余量即可
   } else {
-    panel.style.width = `${targetW}px`;
-    panel.style.height = `${targetH}px`;
-    await wait(210);
+    // 缩小：先切内容淡入，再瞬时收缩窗口（裁切发生在新内容已显示之后）
+    applyTabDom(name);
+    await wait(150);   // 等内容淡入完成后再缩窗，避免裁切闪烁
     await ipcSetTab(name);
   }
-  panel.style.flex = '';
-  panel.style.width = '';
-  panel.style.height = '';
   positionIndicator();
 }
 
@@ -326,8 +338,25 @@ async function setActiveTab(name) {
   try {
     // 离开首页即释放摄像头（隐私优先，禁止常驻）
     if (name !== 'home') stopMirror();
-    // 应用 Tab 需要列表；首页的快捷应用模块同样需要图标数据（主进程有缓存与在途去重）
-    if (name === 'apps' || name === 'home') ensureAppsLoaded();
+    // 重活（apps 扫描 / 图片预加载）的调度策略：
+    //   - 已展开态切 Tab：_justExpanded=false → 立即执行，保持即时响应
+    //   - 从折叠态展开（_justExpanded=true）：延后到展开动画落定后（~350ms）再跑，
+    //     避免与面板 scale 手势争首帧 CPU/GPU，消除展开卡顿
+    // 注：ensureAppsLoaded 内部有缓存与在途去重，延后调用安全；
+    //     renderClipFavs/renderClipList 延后只是缩略图晚一点出现，可接受
+    const _tabNameForDeferred = name; // 闭包捕获当前目标 Tab
+    const runHeavyLoads = () => {
+      if (_tabNameForDeferred === 'apps' || _tabNameForDeferred === 'home') ensureAppsLoaded();
+      if (_tabNameForDeferred === 'home') renderClipFavs();
+      if (_tabNameForDeferred === 'clip') renderClipList();
+    };
+    if (_justExpanded) {
+      // 从折叠展开：双帧后再延 300ms，共约 330ms，让面板 scale 动画先走完
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(runHeavyLoads, 300)));
+    } else {
+      // 已展开态切 Tab：立即执行，无感知延迟
+      runHeavyLoads();
+    }
     if (isExpanded) {
       await morphToTab(name);
     } else {
@@ -924,6 +953,454 @@ if (quickappsAddBtn) {
   });
 }
 
+// ============ 首页 · 收藏剪贴 ============
+const clipfavListEl = document.getElementById('clipfav-list');
+
+function renderClipFavs() {
+  if (!clipfavListEl) return;
+  // 脏标记：clipHistory / clipFavorites / clipImageCache 均未变则跳过重建
+  if (clipDataVersion === lastRenderedFavsVersion) return;
+
+  // 按 clipFavorites 顺序取条目（过滤掉已删的）
+  const favEntries = clipFavorites
+    .map((id) => clipHistory.find((e) => e.id === id))
+    .filter(Boolean);
+
+  if (!favEntries.length) {
+    clipfavListEl.innerHTML =
+      '<button class="clipfav-empty" type="button" data-action="goto-clip">' +
+      '去"剪贴板"Tab 给常用记录加星 →' +
+      '</button>';
+    lastRenderedFavsVersion = clipDataVersion; // 空态也标记已渲染
+    return;
+  }
+
+  // 渲染每条收藏
+  clipfavListEl.innerHTML = favEntries
+    .map((entry) => {
+      const safeId = escapeHtml(entry.id);
+
+      if (entry.type === 'image') {
+        const dataUrl = entry.imagePath ? clipImageCache.get(entry.imagePath) : null;
+        const mediaHtml = dataUrl
+          ? `<img class="clipfav-thumb" src="${escapeHtml(dataUrl)}" alt="图片" draggable="false"/>`
+          : `<div class="clipfav-thumb-placeholder">图</div>`;
+        return (
+          `<div class="clipfav-item clip-type-image" data-id="${safeId}" role="button" tabindex="0" title="图片">` +
+          mediaHtml +
+          `<span class="clipfav-text">图片</span>` +
+          `</div>`
+        );
+      }
+
+      // text | url
+      const isUrl = entry.type === 'url' || (entry.text && CLIP_URL_RE.test(entry.text));
+      const typeClass = isUrl ? 'clip-type-url' : 'clip-type-text';
+      let preview = entry.text || '';
+      if (isUrl) {
+        try {
+          preview = new URL(entry.text).hostname || entry.text;
+        } catch (_) {
+          preview = entry.text || '';
+        }
+      }
+      const safePreview = escapeHtml(preview);
+      const safeTitle = escapeHtml(entry.text || '');
+      return (
+        `<div class="clipfav-item ${typeClass}" data-id="${safeId}" role="button" tabindex="0" title="${safeTitle}">` +
+        `<span class="clipfav-text">${safePreview}</span>` +
+        `</div>`
+      );
+    })
+    .join('');
+  lastRenderedFavsVersion = clipDataVersion; // 标记本次渲染版本
+
+  // 按需预加载图片缩略图（命中后二次渲染刷新）
+  // preloadClipImage 会自增 clipDataVersion，确保二次渲染不被脏标记挡掉
+  const missingImageEntries = favEntries.filter(
+    (e) => e.type === 'image' && e.imagePath && !clipImageCache.has(e.imagePath)
+  );
+  if (missingImageEntries.length > 0) {
+    Promise.all(missingImageEntries.map((e) => preloadClipImage(e.imagePath))).then(() => {
+      const anyLoaded = missingImageEntries.some((e) => clipImageCache.has(e.imagePath));
+      if (anyLoaded) renderClipFavs();
+    });
+  }
+}
+
+if (clipfavListEl) {
+  clipfavListEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // 空态：跳转 clip Tab
+    if (e.target.closest('[data-action="goto-clip"]')) {
+      setActiveTab('clip');
+      return;
+    }
+    // 条目点击：复制
+    const item = e.target.closest('.clipfav-item[data-id]');
+    if (item) {
+      const id = item.dataset.id;
+      // 复制写回系统剪贴板
+      copyClipEntry(id);
+      // copied 反馈：也在首页显示
+      item.classList.add('copied');
+      setTimeout(() => item.classList.remove('copied'), 800);
+    }
+  });
+}
+
+// ============ 剪贴板历史 ============
+const CLIP_HISTORY_KEY = 'notch-clip-history';
+const CLIP_FAV_KEY = 'notch-clip-favorites';
+const CLIP_MAX = 100;
+const CLIP_URL_RE = /^https?:\/\//i;
+
+function loadClipHistory() {
+  try {
+    const raw = localStorage.getItem(CLIP_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveClipHistory(list) {
+  try {
+    localStorage.setItem(CLIP_HISTORY_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore quota errors
+  }
+}
+
+function loadClipFavorites() {
+  try {
+    const raw = localStorage.getItem(CLIP_FAV_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => typeof p === 'string');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveClipFavorites(list) {
+  try {
+    localStorage.setItem(CLIP_FAV_KEY, JSON.stringify(list));
+  } catch (e) {
+    // ignore quota errors
+  }
+}
+
+let clipHistory = loadClipHistory();
+let clipFavorites = loadClipFavorites();
+let clipFilter = 'all'; // all | text | image | faved
+const clipImageCache = new Map(); // imagePath -> dataUrl，仅内存
+
+// 脏标记 —— 单调递增版本号：凡影响 renderClipList / renderClipFavs 输出的变更都自增。
+// 宁可多自增（多一次重建）也不能漏（界面不更新）。
+// 注意：preloadClipImage 在图片入缓存后也要自增，确保二次渲染不被脏标记挡掉。
+let clipDataVersion = 0;
+let lastRenderedClipVersion = -1; // renderClipList 上次渲染时的版本号
+let lastRenderedFavsVersion = -1; // renderClipFavs 上次渲染时的版本号
+
+const clipListEl = document.getElementById('clip-list');
+const clipToolbarEl = document.getElementById('clip-toolbar');
+
+// 防重入标志：renderClipList 内按需图片预加载完成后的二次渲染
+let clipRenderPending = false;
+
+async function preloadClipImage(imagePath) {
+  if (!imagePath) return;
+  if (clipImageCache.has(imagePath)) return;
+  if (!window.notchAPI || typeof window.notchAPI.readClipImage !== 'function') return;
+  try {
+    const dataUrl = await window.notchAPI.readClipImage(imagePath);
+    if (dataUrl) {
+      clipImageCache.set(imagePath, dataUrl);
+      clipDataVersion++; // 图片入缓存 → 版本自增，确保二次渲染不被脏标记挡掉（缩略图必须显示）
+    }
+  } catch (e) {
+    // ignore read errors
+  }
+}
+
+// 去重键：文字/链接按文本内容判重（图片每次复制写的是不同文件路径，
+// 渲染层拿不到内容指纹，暂只对文字/链接去重——恰好覆盖用户遇到的重复场景）。
+function clipDedupKey(entry) {
+  if (entry.type === 'text' || entry.type === 'url') {
+    return entry.text != null ? `t:${entry.text}` : null;
+  }
+  return null; // 图片不参与去重
+}
+
+async function addClipEntry(raw) {
+  const id = generateId();
+  const entry = {
+    id,
+    type: raw.type || 'text',
+    text: raw.text || null,
+    imagePath: raw.imagePath || null,
+    timestamp: Date.now(),
+  };
+
+  // 增量去重：重复内容以最新一次为准 —— 移除历史里的旧重复条，
+  // 新条置顶（时间自然刷新为"刚刚"）。若旧条被收藏，把收藏迁移到新条 id 上，收藏不丢。
+  const key = clipDedupKey(entry);
+  if (key) {
+    const dupIdx = clipHistory.findIndex((e) => clipDedupKey(e) === key);
+    if (dupIdx !== -1) {
+      const dup = clipHistory[dupIdx];
+      clipHistory.splice(dupIdx, 1);
+      const favPos = clipFavorites.indexOf(dup.id);
+      if (favPos !== -1) {
+        clipFavorites[favPos] = id; // 收藏迁移到新条目
+        saveClipFavorites(clipFavorites);
+        clipDataVersion++; // clipFavorites 已变（收藏迁移）
+        if (typeof renderClipFavs === 'function') renderClipFavs();
+      }
+    }
+  }
+
+  clipHistory.unshift(entry);
+
+  // FIFO 淘汰
+  if (clipHistory.length > CLIP_MAX) {
+    const evicted = clipHistory.splice(CLIP_MAX);
+    const evictedPaths = evicted
+      .filter((e) => e.type === 'image' && e.imagePath)
+      .map((e) => e.imagePath);
+    if (evictedPaths.length > 0) {
+      if (window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
+        window.notchAPI.deleteClipImages(evictedPaths).catch(() => {});
+      }
+      evictedPaths.forEach((p) => clipImageCache.delete(p));
+    }
+  }
+
+  saveClipHistory(clipHistory);
+
+  // 图片条目预加载缩略图
+  if (entry.type === 'image' && entry.imagePath) {
+    await preloadClipImage(entry.imagePath);
+  }
+
+  clipDataVersion++; // clipHistory 已变（含 FIFO 淘汰、dedup 移除）
+  renderClipList();
+}
+
+function formatClipTime(ts) {
+  const now = Date.now();
+  const diff = now - ts;
+  if (diff < 60 * 1000) return '刚刚';
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} 分钟前`;
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} 小时前`;
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function clipEntryHtml(entry, faved) {
+  const favClass = faved ? ' faved' : '';
+  const star = faved ? starFilledSvg : starOutlineSvg;
+  const timeStr = escapeHtml(formatClipTime(entry.timestamp));
+  const safeId = escapeHtml(entry.id);
+
+  if (entry.type === 'image') {
+    const dataUrl = entry.imagePath ? clipImageCache.get(entry.imagePath) : null;
+    const thumbHtml = dataUrl
+      ? `<img class="clip-thumb" src="${escapeHtml(dataUrl)}" alt="图片" draggable="false"/>`
+      : `<div class="clip-thumb-placeholder">图片加载中…</div>`;
+    return `<div class="clip-item clip-item-image clip-type-image" data-id="${safeId}" data-action="copy">
+  <div class="clip-thumb-wrap">${thumbHtml}</div>
+  <div class="clip-meta"><span class="clip-type-badge clip-badge-image">图片</span><span class="clip-time">${timeStr}</span></div>
+  <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
+  <button class="clip-del-btn" data-action="delete" aria-label="删除">×</button>
+</div>`;
+  }
+
+  // text | url 条目
+  const safeText = escapeHtml(entry.text || '');
+  const isUrl = entry.type === 'url' || (entry.text && CLIP_URL_RE.test(entry.text));
+  const typeClass = isUrl ? 'clip-type-url' : 'clip-type-text';
+  const badgeHtml = isUrl ? '<span class="clip-type-badge clip-badge-url">链接</span>' : '';
+  return `<div class="clip-item clip-item-text ${typeClass}" data-id="${safeId}" data-action="copy">
+  <p class="clip-text">${safeText}</p>
+  <div class="clip-meta">${badgeHtml}<span class="clip-time">${timeStr}</span></div>
+  <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
+  <button class="clip-del-btn" data-action="delete" aria-label="删除">×</button>
+</div>`;
+}
+
+function getFilteredClipItems() {
+  if (clipFilter === 'all') return clipHistory;
+  if (clipFilter === 'text') return clipHistory.filter((e) => e.type === 'text' || e.type === 'url');
+  if (clipFilter === 'image') return clipHistory.filter((e) => e.type === 'image');
+  if (clipFilter === 'faved') {
+    const favSet = new Set(clipFavorites);
+    return clipHistory.filter((e) => favSet.has(e.id));
+  }
+  return clipHistory;
+}
+
+function renderClipList() {
+  if (!clipListEl) return;
+  // 脏标记：数据/过滤器/图片缓存均未变则跳过全量重建
+  if (clipDataVersion === lastRenderedClipVersion) return;
+
+  const items = getFilteredClipItems();
+  const favSet = new Set(clipFavorites);
+
+  if (items.length === 0) {
+    clipListEl.innerHTML =
+      '<div class="clip-empty">' +
+      (clipHistory.length ? '没有符合条件的记录' : '复制点什么，历史会出现在这里') +
+      '</div>';
+    lastRenderedClipVersion = clipDataVersion; // 空态也标记已渲染
+    return;
+  }
+
+  clipListEl.innerHTML = items.map((e) => clipEntryHtml(e, favSet.has(e.id))).join('');
+  lastRenderedClipVersion = clipDataVersion; // 标记本次渲染版本（在预加载之前）
+
+  // 按需预加载图片：收集当前 items 里 cache 未命中的 image 条目
+  // preloadClipImage 成功后自增 clipDataVersion，确保二次渲染不被脏标记挡掉
+  if (clipRenderPending) return; // 防重入：已有预加载任务在途
+  const missingPaths = items
+    .filter((e) => e.type === 'image' && e.imagePath && !clipImageCache.has(e.imagePath))
+    .map((e) => e.imagePath);
+
+  if (missingPaths.length === 0) return;
+
+  clipRenderPending = true;
+  Promise.all(missingPaths.map((p) => preloadClipImage(p)))
+    .then(() => {
+      clipRenderPending = false;
+      // 只有至少有一条路径成功填入 cache 才重渲，避免无意义刷新
+      const anyLoaded = missingPaths.some((p) => clipImageCache.has(p));
+      if (anyLoaded) renderClipList();
+    })
+    .catch(() => {
+      clipRenderPending = false;
+    });
+}
+
+// ---- 工具栏事件委托 ----
+if (clipToolbarEl) {
+  clipToolbarEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const filterBtn = e.target.closest('.clip-filter');
+    if (filterBtn) {
+      clipFilter = filterBtn.dataset.filter || 'all';
+      clipToolbarEl.querySelectorAll('.clip-filter').forEach((b) => b.classList.remove('active'));
+      filterBtn.classList.add('active');
+      clipDataVersion++; // clipFilter 已变 → 输出变化
+      renderClipList();
+      return;
+    }
+    if (e.target.closest('#clip-clear-btn')) {
+      clearClipHistory();
+    }
+  });
+}
+
+// ---- 列表事件委托 ----
+if (clipListEl) {
+  clipListEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const item = e.target.closest('.clip-item');
+    if (!item) return;
+    const id = item.dataset.id;
+    if (!id) return;
+
+    // 优先判断子按钮
+    if (e.target.closest('.clip-fav-btn')) {
+      toggleClipFavorite(id);
+      return;
+    }
+    if (e.target.closest('.clip-del-btn')) {
+      deleteClipEntry(id);
+      return;
+    }
+    // 点条目本体：复制
+    copyClipEntry(id);
+  });
+}
+
+function toggleClipFavorite(id) {
+  const idx = clipFavorites.indexOf(id);
+  if (idx === -1) {
+    clipFavorites.push(id);
+  } else {
+    clipFavorites.splice(idx, 1);
+  }
+  clipDataVersion++; // clipFavorites 已变
+  saveClipFavorites(clipFavorites);
+  renderClipList();
+  renderClipFavs();
+}
+
+function deleteClipEntry(id) {
+  const idx = clipHistory.findIndex((e) => e.id === id);
+  if (idx === -1) return;
+  const entry = clipHistory[idx];
+  clipHistory.splice(idx, 1);
+  clipFavorites = clipFavorites.filter((fid) => fid !== id);
+  clipDataVersion++; // clipHistory + clipFavorites 已变
+  saveClipHistory(clipHistory);
+  saveClipFavorites(clipFavorites);
+  if (entry.type === 'image' && entry.imagePath) {
+    clipImageCache.delete(entry.imagePath);
+    if (window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
+      window.notchAPI.deleteClipImages([entry.imagePath]).catch(() => {});
+    }
+  }
+  renderClipList();
+  renderClipFavs();
+}
+
+function clearClipHistory() {
+  const imagePaths = clipHistory
+    .filter((e) => e.type === 'image' && e.imagePath)
+    .map((e) => e.imagePath);
+  clipHistory = [];
+  clipFavorites = [];
+  clipImageCache.clear();
+  clipDataVersion++; // 全部数据已清空
+  saveClipHistory([]);
+  saveClipFavorites([]);
+  if (imagePaths.length > 0 && window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
+    window.notchAPI.deleteClipImages(imagePaths).catch(() => {});
+  }
+  renderClipList();
+  renderClipFavs();
+}
+
+function copyClipEntry(id) {
+  const entry = clipHistory.find((e) => e.id === id);
+  if (!entry) return;
+  if (window.notchAPI && typeof window.notchAPI.writeClipboard === 'function') {
+    window.notchAPI.writeClipboard(entry).catch(() => {});
+  }
+  // 视觉反馈：800ms 后移除 copied 类
+  const itemEl = clipListEl && clipListEl.querySelector(`.clip-item[data-id="${CSS.escape(id)}"]`);
+  if (itemEl) {
+    itemEl.classList.add('copied');
+    setTimeout(() => itemEl.classList.remove('copied'), 800);
+  }
+}
+
+// ---- IPC 推送监听 ----
+if (window.notchAPI && typeof window.notchAPI.onNewClipEntry === 'function') {
+  window.notchAPI.onNewClipEntry((raw) => {
+    addClipEntry(raw);
+  });
+}
+
 renderAll();
 renderApps(); // 首屏先画快捷应用（空态/字母兜底），图标随 ensureAppsLoaded 就绪后刷新
+renderClipList(); // 首屏确保 clip-list DOM 就绪时渲染一次（幂等）
+renderClipFavs(); // 首屏渲染收藏剪贴块
 initTab();

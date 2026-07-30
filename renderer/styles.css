@@ -27,6 +27,11 @@
   --p2: #FFD60A;
   --p3: #30D158;
 
+  /* 剪贴板类型色（极低饱和，仅用于左色条和徽章，不上整块背景） */
+  --clip-text: rgba(255, 255, 255, 0.18);   /* 文字：中性微亮，几乎无色 */
+  --clip-url:  rgba(90, 160, 220, 0.55);    /* 链接：低饱和蓝青 */
+  --clip-image: rgba(160, 100, 220, 0.50);  /* 图片：低饱和紫 */
+
   /* ============ 圆角 ============ */
   --r-notch: 10px;
   --r-panel: 24px;
@@ -53,15 +58,16 @@
   --font-mono: 'SF Mono', ui-monospace, monospace;
 
   /* ============ 动效 · Motion System v2 ============ */
-  --ease: cubic-bezier(0.32, 0.72, 0, 1); /* 兼容旧引用：减速曲线 */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* 强减速 expo-out，入场/退场主曲线 */
-  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1); /* 轻微回弹落定：胶囊滑动 / 勾选 / 提起 */
-  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1); /* 对称缓动：窗口尺寸变形（无过冲，防裁切） */
-  --d-1: 110ms; /* 微反馈：按压 */
-  --d-fast: 180ms;
-  --d-base: 240ms;
-  --d-slow: 320ms;
-  --d-grand: 380ms; /* 展开大手势 */
+  --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Linear 主曲线：快启动平稳落定，无回弹，日常 hover/微交互 */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* 强减速 expo-out，入场/退场主曲线（保留） */
+  --ease-spring: cubic-bezier(0.34, 1.1, 0.4, 1); /* 极轻微回弹落定：胶囊滑动/勾选（1.4→1.1，收敛过冲） */
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1); /* 对称缓动：窗口尺寸变形（无过冲，防裁切，保留） */
+  --d-micro: 100ms; /* 纯颜色过渡，对齐 Linear 0.1s */
+  --d-1: 90ms; /* 微反馈：按压（原 110ms） */
+  --d-fast: 140ms; /* hover/颜色/边框主时长（原 180ms），对齐 Linear 0.16s */
+  --d-base: 180ms; /* 内容态过渡（原 240ms） */
+  --d-slow: 260ms; /* 原 320ms */
+  --d-grand: 340ms; /* 展开大手势（原 380ms，略收但保留仪式感） */
 }
 
 * {
@@ -121,7 +127,7 @@ body {
 #app.collapsed .notch {
   height: 100vh;
   align-items: flex-end;
-  padding-bottom: 3px;
+  padding-bottom: 2px;
 }
 
 /* 展开态：刘海条退场（高 0），面板自身从屏幕最顶贴下、铺满整片黑，
@@ -134,21 +140,25 @@ body {
   border-radius: 0;
 }
 
+/* 折叠条高度 = 物理刘海高（不超出），黑条藏在刘海里几乎不可见。
+   靠这颗"抓握小药丸"露在刘海下沿作为唯一可见的可点提示：
+   常态就是一条提亮的短药丸（12px 宽），而非旧的 4px 暗点，
+   否则和纯黑刘海无从分辨、用户找不到折叠条在哪。 */
 .notch-dot {
-  width: 4px;
-  height: 4px;
+  width: 14px;
+  height: 3px;
   border-radius: 999px;
-  background: var(--text-4);
+  background: var(--text-2); /* 0.55 不透明度：在深色刘海下沿明确可辨（用户曾丢失折叠条，可见性优先） */
   transition:
     opacity 160ms var(--ease),
     width var(--d-base) var(--ease-spring),
     background var(--d-fast) var(--ease);
 }
 
-/* 折叠态 hover：圆点拉成小药丸 + 提亮，作为"可下拉"的抓握暗示 */
+/* 折叠态 hover：药丸变长 + 进一步提亮，作为"可下拉"的抓握暗示 */
 #app.collapsed .notch:hover .notch-dot {
-  width: 24px;
-  background: var(--text-2);
+  width: 28px;
+  background: var(--text-1);
 }
 
 #app.expanded .notch-dot {
@@ -162,9 +172,9 @@ body {
   border-radius: var(--r-tile);
   box-shadow: inset 0 1px 0 var(--tile-highlight);
   transition:
-    background var(--d-base) var(--ease),
-    transform var(--d-base) var(--ease-out),
-    box-shadow var(--d-base) var(--ease);
+    background var(--d-fast) var(--ease),
+    transform var(--d-fast) var(--ease-out),
+    box-shadow var(--d-fast) var(--ease);
 }
 
 .tile:hover {
@@ -196,7 +206,7 @@ body {
   border: 1px solid var(--hairline);
   border-top: none;
   border-radius: 0 0 var(--r-panel) var(--r-panel);
-  box-shadow: 0 26px 60px var(--panel-shadow);
+  box-shadow: 0 10px 28px var(--panel-shadow);
   padding: var(--s-2) var(--s-4) var(--s-4);
   display: flex;
   flex-direction: column;
@@ -208,9 +218,7 @@ body {
   will-change: transform, opacity;
   transition:
     opacity var(--d-fast) var(--ease-out),
-    transform var(--d-fast) var(--ease-out),
-    width 200ms var(--ease-soft),
-    height 200ms var(--ease-soft);
+    transform var(--d-fast) var(--ease-out);
 }
 
 /* 展开：面板从刘海垂下并落定（scale 0.96→1 + 下移归位，expo-out 大手势） */
@@ -220,9 +228,7 @@ body {
   transform: translateY(0) scale(1);
   transition:
     opacity 220ms var(--ease-out) 20ms,
-    transform var(--d-grand) var(--ease-out),
-    width 200ms var(--ease-soft),
-    height 200ms var(--ease-soft);
+    transform var(--d-grand) var(--ease-out);
 }
 
 /* 收起退场：面板回缩进刘海（窗口还保持展开尺寸，先播退场再瞬时缩窗） */
@@ -321,7 +327,7 @@ body {
   cursor: pointer;
   white-space: nowrap;
   transition:
-    color var(--d-base) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -353,10 +359,10 @@ body {
   border-radius: var(--r-pill);
   pointer-events: none;
   transform: translateX(0);
-  /* 胶囊滑动用弹簧落定，宽度用减速（宽度过冲会抖） */
+  /* 胶囊滑动：spring 落定（已收敛回弹），宽度用减速（宽度过冲会抖） */
   transition:
-    transform 360ms var(--ease-spring),
-    width 300ms var(--ease-out);
+    transform var(--d-base) var(--ease-spring),
+    width var(--d-base) var(--ease-out);
 }
 
 /* ============ 顶栏右侧 ============ */
@@ -377,8 +383,8 @@ body {
   color: var(--text-3);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -410,9 +416,15 @@ body {
   opacity: 0;
   pointer-events: none;
   transform: translateY(6px);
+  /* will-change 已删：4 个面板常驻合成层吃显存，动画期间浏览器会自动提升，不需要常驻声明 */
   transition:
     opacity var(--d-fast) var(--ease),
     transform var(--d-fast) var(--ease);
+}
+
+/* 非激活面板跳过子树布局/绘制，切 Tab 时仅付 1 份排版成本而非 4 份 */
+.tab-panel:not(.active) {
+  content-visibility: hidden;
 }
 
 .tab-panel.active {
@@ -428,26 +440,32 @@ body {
    用 backwards 填充——动画结束即回归元素自身样式，不与 hover 的 transform 冲突 */
 .tab-panel.active .home-bento > *,
 .tab-panel.active .sections > *,
-.tab-panel.active .apps-scroll > * {
+.tab-panel.active .apps-scroll > *,
+.tab-panel.active .clip-panel > * {
   animation: riseIn 440ms var(--ease-out) backwards;
 }
 .tab-panel.active .home-bento > *:nth-child(1),
 .tab-panel.active .sections > *:nth-child(1),
-.tab-panel.active .apps-scroll > *:nth-child(2) {
-  animation-delay: 30ms;
+.tab-panel.active .apps-scroll > *:nth-child(2),
+.tab-panel.active .clip-panel > *:nth-child(1) {
+  animation-delay: 60ms;
 }
 .tab-panel.active .home-bento > *:nth-child(2),
 .tab-panel.active .sections > *:nth-child(2),
-.tab-panel.active .apps-scroll > *:nth-child(3) {
-  animation-delay: 78ms;
+.tab-panel.active .apps-scroll > *:nth-child(3),
+.tab-panel.active .clip-panel > *:nth-child(2) {
+  animation-delay: 108ms;
 }
 .tab-panel.active .home-bento > *:nth-child(3),
 .tab-panel.active .sections > *:nth-child(3) {
-  animation-delay: 126ms;
+  animation-delay: 156ms;
 }
 .tab-panel.active .home-bento > *:nth-child(4),
 .tab-panel.active .sections > *:nth-child(4) {
-  animation-delay: 174ms;
+  animation-delay: 204ms;
+}
+.tab-panel.active .home-bento > *:nth-child(5) {
+  animation-delay: 240ms;
 }
 
 @keyframes riseIn {
@@ -473,13 +491,23 @@ body {
   color: var(--text-3);
 }
 
-/* ============ 首页 · 横向 bento（时钟 | 快捷应用 | 速记 | 镜子） ============ */
+/* ============ 首页 · bento（上排：时钟 | 快捷应用 | 速记 | 镜子；下排：收藏剪贴整行） ============ */
 .home-bento {
   display: grid;
   grid-template-columns: 220px 252px 1fr 132px;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    "clock quickapps note mirror"
+    "clipfav clipfav clipfav clipfav";
   gap: var(--s-3);
   height: 100%;
 }
+
+.home-clock    { grid-area: clock; }
+.home-quickapps { grid-area: quickapps; }
+.home-note     { grid-area: note; }
+.home-mirror   { grid-area: mirror; }
+.home-clipfav  { grid-area: clipfav; }
 
 /* 时钟·日期 */
 .home-clock {
@@ -621,8 +649,8 @@ body {
   color: var(--text-3);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -662,7 +690,7 @@ body {
   border-radius: var(--r-squircle);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
     transform var(--d-fast) var(--ease-spring);
 }
 
@@ -716,7 +744,7 @@ body {
   font-weight: 400;
   letter-spacing: 0.2px;
   cursor: pointer;
-  transition: color var(--d-base) var(--ease);
+  transition: color var(--d-fast) var(--ease);
 }
 
 .quickapps-empty:hover {
@@ -774,7 +802,7 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--text-3);
-  transition: opacity var(--d-base) var(--ease);
+  transition: opacity var(--d-fast) var(--ease);
 }
 
 .mirror-placeholder svg {
@@ -800,6 +828,164 @@ body {
 
 .home-mirror.live .mirror-hint {
   visibility: hidden;
+}
+
+/* ============ 首页 · 收藏剪贴 tile（第二行整行） ============ */
+.home-clipfav {
+  padding: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 120px;
+}
+
+.clipfav-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  gap: var(--s-2);
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px; /* prevent scrollbar clipping */
+}
+
+.clipfav-list::-webkit-scrollbar {
+  height: 3px;
+}
+
+.clipfav-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.clipfav-list::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+
+.clipfav-list::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* 空态提示 */
+.clipfav-empty {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-4);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  padding: var(--s-1) var(--s-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--d-fast) var(--ease);
+}
+
+.clipfav-empty:hover {
+  color: var(--text-2);
+}
+
+/* 每个收藏条目卡片 */
+.clipfav-item {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  max-width: 180px;
+  padding: 5px var(--s-2);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-input);
+  cursor: pointer;
+  transition:
+    background var(--d-fast) var(--ease),
+    transform var(--d-fast) var(--ease-spring),
+    border-color var(--d-fast) var(--ease);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 左色条：类型色 */
+.clipfav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: var(--r-input) 0 0 var(--r-input);
+  background: var(--clip-text);
+}
+
+.clipfav-item.clip-type-url::before {
+  background: var(--clip-url);
+}
+
+.clipfav-item.clip-type-image::before {
+  background: var(--clip-image);
+}
+
+.clipfav-item:hover {
+  background: var(--surface-2);
+  border-color: var(--hairline);
+  transform: translateY(-2px);
+}
+
+.clipfav-item:active {
+  transform: scale(0.95);
+}
+
+/* copied 反馈 */
+.clipfav-item.copied {
+  background: var(--surface-3);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* 图片缩略图 */
+.clipfav-thumb {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.clipfav-thumb-placeholder {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--text-4);
+  pointer-events: none;
+}
+
+/* 文字预览 */
+.clipfav-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.1px;
+  pointer-events: none;
+  padding-left: 4px; /* indent away from color bar */
+}
+
+/* copied 状态文字变亮 */
+.clipfav-item.copied .clipfav-text {
+  color: var(--text-1);
 }
 
 /* ============ 待办 · P0–P3 四列并排 ============ */
@@ -921,7 +1107,7 @@ body {
   color: var(--text-1);
   border-radius: 4px;
   line-height: 1.4;
-  transition: background var(--d-base) var(--ease);
+  transition: background var(--d-fast) var(--ease);
 }
 
 .todo-item:hover {
@@ -968,8 +1154,8 @@ body {
   justify-content: center;
   padding: 0;
   transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease),
     transform var(--d-fast) var(--ease-spring);
 }
 
@@ -997,7 +1183,7 @@ body {
   transform: scale(0.6);
   transition:
     opacity var(--d-fast) var(--ease-out),
-    transform var(--d-base) var(--ease-spring);
+    transform var(--d-fast) var(--ease-spring);
 }
 
 .todo-item.done .checkbox svg {
@@ -1046,8 +1232,8 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease);
 }
 
 .delete:hover {
@@ -1080,8 +1266,8 @@ body {
   opacity: 0;
   transform: translateY(3px);
   transition:
-    opacity var(--d-base) var(--ease),
-    transform var(--d-base) var(--ease);
+    opacity var(--d-fast) var(--ease),
+    transform var(--d-fast) var(--ease);
 }
 
 .add-row.armed::after {
@@ -1101,8 +1287,8 @@ body {
   font-family: var(--font);
   outline: none;
   transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease);
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease);
 }
 
 .add-row input:focus {
@@ -1172,8 +1358,8 @@ body {
   font-family: var(--font);
   outline: none;
   transition:
-    background var(--d-base) var(--ease),
-    border-color var(--d-base) var(--ease);
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease);
 }
 
 .apps-search:focus {
@@ -1257,7 +1443,7 @@ body {
   border-radius: var(--r-tile);
   cursor: pointer;
   transition:
-    background var(--d-base) var(--ease),
+    background var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -1290,7 +1476,7 @@ body {
   font-size: 20px;
   font-weight: 500;
   pointer-events: none;
-  transition: transform var(--d-base) var(--ease-spring);
+  transition: transform var(--d-fast) var(--ease-spring);
 }
 
 /* dock 式提起：图标上浮放大（图标动、名字不动，层次更稳） */
@@ -1347,8 +1533,8 @@ body {
   cursor: pointer;
   opacity: 0;
   transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease);
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease);
 }
 
 .app-item:hover .app-fav-toggle {
@@ -1371,8 +1557,8 @@ body {
 
 .app-fav-toggle {
   transition:
-    opacity var(--d-base) var(--ease),
-    color var(--d-base) var(--ease),
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
     transform var(--d-1) var(--ease-out);
 }
 
@@ -1384,6 +1570,354 @@ body {
 .app-item.dragging {
   opacity: 0.4;
   transform: scale(0.9);
+}
+
+/* ============ 剪贴板 Tab ============ */
+#tab-clip {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.clip-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: var(--s-2);
+}
+
+/* — 工具栏 — */
+.clip-toolbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s-1);
+  flex-shrink: 0;
+}
+
+.clip-filter {
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  color: var(--text-3);
+  font-size: 11px;
+  font-family: var(--font);
+  font-weight: 400;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  transition:
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease);
+  -webkit-app-region: no-drag;
+}
+
+.clip-filter:hover {
+  color: var(--text-2);
+}
+
+.clip-filter.active {
+  background: var(--surface-2);
+  border-color: var(--hairline);
+  color: var(--text-1);
+}
+
+.clip-clear-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--r-squircle);
+  color: var(--text-3);
+  cursor: pointer;
+  margin-left: auto;
+  transition:
+    background var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
+    transform var(--d-1) var(--ease-out);
+  -webkit-app-region: no-drag;
+}
+
+.clip-clear-btn:hover {
+  background: var(--surface-2);
+  color: var(--p0);
+}
+
+.clip-clear-btn:active {
+  transform: scale(0.86);
+}
+
+.clip-clear-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* — 列表（横向 4 列网格） — */
+.clip-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-2);
+  align-content: start;
+}
+
+.clip-list::-webkit-scrollbar {
+  width: 3px;
+}
+
+.clip-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.clip-list::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+
+.clip-list::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* — 空态（跨满 4 列居中） — */
+.clip-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+/* — 条目基础 — */
+.clip-item {
+  position: relative;
+  display: flex;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-tile);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  /* 左色条：用 border-left 做类型区分，默认透明占位 */
+  border-left: 2px solid transparent;
+  min-height: 64px;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition:
+    background var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease),
+    transform var(--d-1) var(--ease-out);
+  -webkit-app-region: no-drag;
+}
+
+/* — 类型左色条 — */
+.clip-type-text {
+  border-left-color: var(--clip-text);
+}
+
+.clip-type-url {
+  border-left-color: var(--clip-url);
+}
+
+.clip-type-image {
+  border-left-color: var(--clip-image);
+}
+
+.clip-item:hover {
+  background: var(--surface-2);
+}
+
+.clip-item:active {
+  transform: scale(0.99);
+}
+
+/* "已复制"反馈：绿边瞬入、随默认过渡淡出 */
+.clip-item.copied {
+  border-color: var(--p3);
+  box-shadow: 0 0 0 1px var(--p3);
+  transition:
+    background var(--d-base) var(--ease),
+    border-color 0ms,
+    box-shadow 0ms,
+    transform var(--d-1) var(--ease-out);
+}
+
+/* — 文字条目 — */
+.clip-item-text {
+  flex-direction: column;
+}
+
+.clip-text {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-1);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+  pointer-events: auto;
+}
+
+/* — 图片条目（卡片式：缩略图占满列宽，元信息在下方） — */
+.clip-item-image {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* 图片卡片内：thumb-wrap 上方，meta 下方 */
+.clip-item-image .clip-thumb-wrap {
+  flex-shrink: 0;
+  width: 100%;
+  height: 88px;
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clip-item-image .clip-meta {
+  padding: var(--s-1) var(--s-2) var(--s-2);
+  margin-top: 0;
+}
+
+.clip-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.clip-thumb-placeholder {
+  font-size: 11px;
+  color: var(--text-4);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* — meta 行（徽章 + 时间） — */
+.clip-meta {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: var(--s-1);
+}
+
+/* 单色徽章：image / url 同一套灰度风格，仅靠文案区分 */
+.clip-type-badge {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  padding: 1px 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline-soft);
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
+.clip-badge-image {
+  /* 低饱和紫调，与左色条呼应，整块背景仍是玻璃 */
+  background: var(--surface-1);
+  border-color: var(--clip-image);
+  color: var(--clip-image);
+}
+
+.clip-badge-url {
+  /* 低饱和蓝青调，与左色条呼应，整块背景仍是玻璃 */
+  background: var(--surface-1);
+  border-color: var(--clip-url);
+  color: var(--clip-url);
+}
+
+.clip-time {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* — 浮出操作按钮（收藏 / 删除） — */
+.clip-fav-btn,
+.clip-del-btn {
+  position: absolute;
+  top: var(--s-2);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--tooltip-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  color: var(--text-2);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--d-fast) var(--ease),
+    color var(--d-fast) var(--ease),
+    transform var(--d-1) var(--ease-out);
+  -webkit-app-region: no-drag;
+}
+
+.clip-del-btn {
+  right: var(--s-2);
+}
+
+.clip-fav-btn {
+  right: 28px;
+}
+
+.clip-item:hover .clip-fav-btn,
+.clip-item:hover .clip-del-btn {
+  opacity: 1;
+}
+
+.clip-fav-btn.faved {
+  opacity: 1;
+  color: var(--text-1);
+}
+
+.clip-fav-btn:hover {
+  color: var(--text-1);
+}
+
+.clip-del-btn:hover {
+  color: var(--p0);
+}
+
+.clip-fav-btn:active,
+.clip-del-btn:active {
+  transform: scale(0.8);
+}
+
+.clip-fav-btn svg,
+.clip-del-btn svg {
+  width: 11px;
+  height: 11px;
+  pointer-events: none;
 }
 
 /* ============ 尊重系统"减弱动态效果" ============ */

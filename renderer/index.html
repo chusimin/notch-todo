@@ -40,6 +40,13 @@
               </svg>
               <span class="tab-label">待办</span>
             </button>
+            <button class="tab" type="button" data-tab="clip" role="tab">
+              <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                <rect x="9" y="3" width="6" height="4" rx="1" />
+              </svg>
+              <span class="tab-label">剪贴板</span>
+            </button>
             <button class="tab" type="button" data-tab="apps" role="tab">
               <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
@@ -134,6 +141,14 @@
                 <span class="mirror-label" id="mirror-label">镜子</span>
                 <span class="mirror-hint" id="mirror-hint">点按开启</span>
               </section>
+
+              <!-- 收藏剪贴（第二行整行） -->
+              <section class="tile home-clipfav">
+                <div class="tile-head">
+                  <span class="tile-label">收藏剪贴</span>
+                </div>
+                <div class="clipfav-list" id="clipfav-list"></div>
+              </section>
             </div>
           </section>
 
@@ -210,6 +225,27 @@
                   />
                 </div>
               </section>
+            </div>
+          </section>
+
+          <section id="tab-clip" class="tab-panel" role="tabpanel">
+            <div class="clip-panel">
+              <div class="clip-toolbar" id="clip-toolbar">
+                <button class="clip-filter active" data-filter="all" type="button">全部</button>
+                <button class="clip-filter" data-filter="text" type="button">文字</button>
+                <button class="clip-filter" data-filter="image" type="button">图片</button>
+                <button class="clip-filter" data-filter="faved" type="button">收藏</button>
+                <button class="clip-clear-btn squircle" id="clip-clear-btn" type="button" aria-label="清空历史">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 7h16" />
+                    <path d="M9 7V5h6v2" />
+                    <path d="M6 7l1 12h10l1-12" />
+                  </svg>
+                </button>
+              </div>
+              <div class="clip-list" id="clip-list">
+                <div class="clip-empty" id="clip-empty">复制点什么，历史会出现在这里</div>
+              </div>
             </div>
           </section>
 
