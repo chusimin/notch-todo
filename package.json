@@ -1,11 +1,12 @@
 {
   "name": "notch-todo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "桌面刘海屏待办 - macOS notch-shaped priority todo widget",
   "main": "main.js",
   "author": "Vibe Coding",
   "license": "MIT",
   "scripts": {
+    "test": "node --check main.js && node --check preload.js && node --check renderer/app.js && node --check renderer/notification.js && node --check build/afterPack.js",
     "start": "electron .",
     "build": "electron-builder --mac dmg",
     "build:zip": "electron-builder --mac zip",
@@ -36,6 +37,7 @@
       "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
     ],
     "mac": {
+      "icon": "notch-plugin-icon-transparent.png",
       "category": "public.app-category.productivity",
       "target": [
         {

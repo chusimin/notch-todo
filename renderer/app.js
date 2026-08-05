@@ -4,6 +4,69 @@ const PRIORITIES = ['P0', 'P1', 'P2', 'P3'];
 const app = document.getElementById('app');
 const notch = document.getElementById('notch');
 const panel = document.getElementById('panel');
+const statusToast = document.getElementById('status-toast');
+const statusToastMessage = document.getElementById('status-toast-message');
+const statusToastAction = document.getElementById('status-toast-action');
+
+let statusToastTimer = null;
+let statusToastHideTimer = null;
+let statusToastActionHandler = null;
+let statusToastExpireHandler = null;
+
+function dismissStatusToast(commitPending = true) {
+  if (statusToastTimer) clearTimeout(statusToastTimer);
+  if (statusToastHideTimer) clearTimeout(statusToastHideTimer);
+  statusToastTimer = null;
+  statusToastHideTimer = null;
+  const onExpire = statusToastExpireHandler;
+  statusToastExpireHandler = null;
+  statusToastActionHandler = null;
+  const actionHadFocus = statusToastAction === document.activeElement;
+  if (actionHadFocus) {
+    const activeTabButton = document.querySelector('.tab.active');
+    if (activeTabButton) activeTabButton.focus({ preventScroll: true });
+  }
+  if (statusToast) {
+    statusToast.classList.remove('visible');
+    statusToast.setAttribute('aria-hidden', 'true');
+  }
+  if (statusToastAction) statusToastAction.hidden = true;
+  statusToastHideTimer = setTimeout(() => {
+    statusToastHideTimer = null;
+    if (statusToast) statusToast.hidden = true;
+    if (statusToastMessage) statusToastMessage.textContent = '';
+  }, 180);
+  if (commitPending && onExpire) onExpire();
+}
+
+function showStatusToast(message, options = {}) {
+  dismissStatusToast(true);
+  if (!statusToast || !statusToastMessage) return;
+  const { actionLabel, onAction, onExpire, duration = 1800 } = options;
+  if (statusToastHideTimer) clearTimeout(statusToastHideTimer);
+  statusToastHideTimer = null;
+  statusToast.hidden = false;
+  statusToast.setAttribute('aria-hidden', 'false');
+  statusToastMessage.textContent = message;
+  statusToastActionHandler = typeof onAction === 'function' ? onAction : null;
+  statusToastExpireHandler = typeof onExpire === 'function' ? onExpire : null;
+  if (statusToastAction && statusToastActionHandler) {
+    statusToastAction.textContent = actionLabel || '撤销';
+    statusToastAction.hidden = false;
+  }
+  statusToast.classList.add('visible');
+  statusToastTimer = setTimeout(() => dismissStatusToast(true), duration);
+}
+
+if (statusToastAction) {
+  statusToastAction.addEventListener('click', () => {
+    const handler = statusToastActionHandler;
+    dismissStatusToast(false);
+    if (handler) handler();
+  });
+}
+
+window.addEventListener('beforeunload', () => dismissStatusToast(true));
 
 function loadData() {
   try {
@@ -11,14 +74,37 @@ function loadData() {
     if (!raw) return { P0: [], P1: [], P2: [], P3: [] };
     const parsed = JSON.parse(raw);
     return {
-      P0: Array.isArray(parsed.P0) ? parsed.P0 : [],
-      P1: Array.isArray(parsed.P1) ? parsed.P1 : [],
-      P2: Array.isArray(parsed.P2) ? parsed.P2 : [],
-      P3: Array.isArray(parsed.P3) ? parsed.P3 : [],
+      P0: normalizeTodoItems(parsed && parsed.P0),
+      P1: normalizeTodoItems(parsed && parsed.P1),
+      P2: normalizeTodoItems(parsed && parsed.P2),
+      P3: normalizeTodoItems(parsed && parsed.P3),
     };
   } catch (e) {
     return { P0: [], P1: [], P2: [], P3: [] };
   }
+}
+
+function normalizeTodoItems(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        const text = item.trim();
+        return text
+          ? { id: generateId(), text, done: false, createdAt: Date.now() }
+          : null;
+      }
+      if (!item || typeof item !== 'object' || typeof item.text !== 'string') return null;
+      const text = item.text.trim();
+      if (!text) return null;
+      return {
+        id: typeof item.id === 'string' && item.id ? item.id : generateId(),
+        text,
+        done: item.done === true,
+        createdAt: Number.isFinite(item.createdAt) ? item.createdAt : Date.now(),
+      };
+    })
+    .filter(Boolean);
 }
 
 function saveData(data) {
@@ -48,23 +134,25 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function todoItemHtml(priority, item) {
+  const doneClass = item.done ? ' done' : '';
+  const safeId = escapeHtml(item.id);
+  const safeText = escapeHtml(item.text);
+  const toggleLabel = item.done ? `恢复未完成：${safeText}` : `标记完成：${safeText}`;
+  return `
+    <li class="todo-item${doneClass}" data-id="${safeId}" data-priority="${priority}">
+      <button class="checkbox" type="button" data-action="toggle" aria-label="${toggleLabel}" aria-pressed="${item.done}">${checkSvg()}</button>
+      <span class="todo-text">${safeText}</span>
+      <button class="delete" type="button" data-action="delete" aria-label="删除：${safeText}">×</button>
+    </li>
+  `;
+}
+
 function renderList(priority) {
   const list = document.querySelector(`.todo-list[data-priority="${priority}"]`);
   if (!list) return;
   const items = data[priority] || [];
-  list.innerHTML = items
-    .map((item) => {
-      const doneClass = item.done ? ' done' : '';
-      const safeText = escapeHtml(item.text);
-      return `
-        <li class="todo-item${doneClass}" data-id="${item.id}" data-priority="${priority}">
-          <button class="checkbox" data-action="toggle">${checkSvg()}</button>
-          <span class="todo-text">${safeText}</span>
-          <button class="delete" data-action="delete" aria-label="删除">×</button>
-        </li>
-      `;
-    })
-    .join('');
+  list.innerHTML = items.map((item) => todoItemHtml(priority, item)).join('');
 }
 
 function updateCount(priority) {
@@ -104,17 +192,32 @@ function flashCheckboxPop(priority, id) {
 function addTodo(priority, text) {
   const trimmed = text.trim();
   if (!trimmed) return;
-  const id = generateId();
-  data[priority].push({
-    id,
+  const item = {
+    id: generateId(),
     text: trimmed,
     done: false,
     createdAt: Date.now(),
-  });
+  };
+  data[priority].push(item);
+
+  const list = document.querySelector(`.todo-list[data-priority="${priority}"]`);
+  if (list) {
+    list.insertAdjacentHTML('beforeend', todoItemHtml(priority, item));
+  } else {
+    renderList(priority);
+  }
   saveData(data);
-  renderList(priority);
   updateCount(priority);
-  flashItemClass(priority, id, 'enter'); // 新条目滑入
+  flashItemClass(priority, item.id, 'enter');
+  const added = document.querySelector(
+    `.todo-item[data-priority="${priority}"][data-id="${item.id}"]`
+  );
+  if (added) {
+    requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      added.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    });
+  }
 }
 
 function toggleTodo(priority, id) {
@@ -124,25 +227,103 @@ function toggleTodo(priority, id) {
   list[idx].done = !list[idx].done;
   const nowDone = list[idx].done;
   saveData(data);
-  renderList(priority);
+  const itemEl = document.querySelector(
+    `.todo-item[data-priority="${priority}"][data-id="${CSS.escape(id)}"]`
+  );
+  if (itemEl) {
+    itemEl.classList.toggle('done', nowDone);
+    const toggle = itemEl.querySelector('[data-action="toggle"]');
+    if (toggle) {
+      toggle.setAttribute('aria-pressed', String(nowDone));
+      toggle.setAttribute(
+        'aria-label',
+        `${nowDone ? '恢复未完成' : '标记完成'}：${list[idx].text}`
+      );
+    }
+  } else {
+    renderList(priority);
+  }
   updateCount(priority);
   if (nowDone) flashCheckboxPop(priority, id); // 勾选弹一下
 }
 
 function deleteTodo(priority, id) {
-  data[priority] = data[priority].filter((t) => t.id !== id);
+  const list = data[priority];
+  const index = list.findIndex((t) => t.id === id);
+  if (index === -1) return;
+  const [removed] = list.splice(index, 1);
+  const itemEl = document.querySelector(
+    `.todo-item[data-priority="${priority}"][data-id="${CSS.escape(id)}"]`
+  );
+  const shouldRestoreFocus = !!(itemEl && itemEl.contains(document.activeElement));
+  const nearbyItem = itemEl && (itemEl.nextElementSibling || itemEl.previousElementSibling);
+  if (itemEl) itemEl.remove();
   saveData(data);
-  renderList(priority);
   updateCount(priority);
+  if (shouldRestoreFocus) {
+    const nextFocus =
+      (nearbyItem && nearbyItem.querySelector('[data-action="toggle"]')) ||
+      document.querySelector(`.add-row input[data-priority="${priority}"]`);
+    if (nextFocus) nextFocus.focus({ preventScroll: true });
+  }
+  const summary = removed.text.length > 18 ? `${removed.text.slice(0, 18)}…` : removed.text;
+  showStatusToast(`已删除“${summary}”`, {
+    actionLabel: '撤销',
+    duration: 5000,
+    onAction: () => {
+      if (list.some((item) => item.id === removed.id)) return;
+      list.splice(Math.min(index, list.length), 0, removed);
+      saveData(data);
+      renderList(priority);
+      updateCount(priority);
+      const restored = document.querySelector(
+        `.todo-item[data-priority="${priority}"][data-id="${CSS.escape(id)}"] [data-action="toggle"]`
+      );
+      if (restored) restored.focus({ preventScroll: true });
+      showStatusToast('已撤销删除');
+    },
+  });
 }
 
 let isExpanded = false;
 let modeBusy = false;
-// 从折叠态展开的瞬间置 true，--d-grand(340ms) 落定后自动清除；
+let pendingMode = null;
+let restoreNotchFocusAfterCollapse = false;
+// 从折叠态展开的瞬间置 true，岛体落定后自动清除；
 // setActiveTab 读取此标志决定是否延后重活，已展开态切 Tab 不受影响。
 let _justExpanded = false;
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const PANEL_MOTION_FALLBACK_MS = 440;
+const OPENING_SETTLE_MS = 360;
+const HEAVY_LOAD_AFTER_OPEN_MS = 360;
+
+function nextAnimationFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+function waitForPanelMotion() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      panel.removeEventListener('transitionend', onEnd);
+      resolve();
+    };
+    const onEnd = (event) => {
+      if (
+        event.target === panel &&
+        event.propertyName === 'opacity' &&
+        event.pseudoElement === '::before'
+      ) {
+        finish();
+      }
+    };
+    const timer = setTimeout(finish, PANEL_MOTION_FALLBACK_MS);
+    panel.addEventListener('transitionend', onEnd);
+  });
+}
 
 async function ipcSetMode(mode) {
   if (!window.notchAPI || typeof window.notchAPI.setMode !== 'function') return;
@@ -153,35 +334,100 @@ async function ipcSetMode(mode) {
   }
 }
 
-// 窗口尺寸一律瞬时贴位（主进程不再做系统动画 resize），平滑感全在 CSS：
-// 展开 = 先瞬时放大窗口，再播面板入场；收起 = 先播退场（窗口还大着），再瞬时缩窗
+async function ipcBeginCollapse() {
+  if (!window.notchAPI || typeof window.notchAPI.beginCollapse !== 'function') return;
+  try {
+    await window.notchAPI.beginCollapse();
+  } catch (e) {
+    // ignore
+  }
+}
+
+function syncPanelAccessibility(expanded) {
+  const focusWasInPanel = !!(panel && panel.contains(document.activeElement));
+  if (!expanded) {
+    restoreNotchFocusAfterCollapse = document.hasFocus();
+    if (focusWasInPanel) document.activeElement.blur();
+  } else {
+    restoreNotchFocusAfterCollapse = false;
+  }
+  if (panel) {
+    panel.inert = !expanded;
+    panel.setAttribute('aria-hidden', String(!expanded));
+  }
+  if (!notch) return;
+  notch.setAttribute('aria-expanded', String(expanded));
+  notch.setAttribute('aria-label', expanded ? '收起刘海待办' : '展开刘海待办');
+  if (expanded && document.activeElement === notch) {
+    const activeTabButton = document.querySelector(`.tab[data-tab="${activeTab}"]`);
+    if (activeTabButton) activeTabButton.focus({ preventScroll: true });
+  }
+  notch.setAttribute('aria-hidden', String(expanded));
+  notch.tabIndex = expanded ? -1 : 0;
+}
+
+// 原生窗口只提供动画需要的透明画布；用户看到的黑色岛体由 CSS 连续形变。
+// 收起必须等岛体退场完成后再缩原生窗口，避免最后一帧被裁掉。
 async function setMode(expanded) {
-  if (expanded === isExpanded || modeBusy) return;
+  if (modeBusy) {
+    pendingMode = expanded;
+    return;
+  }
+  if (expanded === isExpanded) return;
   modeBusy = true;
   isExpanded = expanded;
   try {
     if (expanded) {
-      await ipcSetMode('expanded');
+      syncPanelAccessibility(true);
       app.classList.remove('collapsed', 'closing');
+      app.classList.add('opening');
+      void panel.offsetWidth;
+      await ipcSetMode('expanded');
+      await nextAnimationFrame();
+      await nextAnimationFrame();
+      app.classList.remove('opening');
       app.classList.add('expanded');
       // 展开后面板从隐藏变为可见，tab 尺寸此时才可量，校准激活胶囊位置
       requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
       // 标记"刚从折叠展开"——setActiveTab 会把重活延后到动画落定后再跑，
       // 避免 apps 扫描 / 图片预加载与面板 scale 动画同帧竞争 GPU/CPU。
-      // 350ms ≈ --d-grand(340ms) + 10ms 余量，过后清除让切 Tab 恢复即时加载。
+      // 360ms 覆盖岛体 340ms 形变并留一帧余量，过后让切 Tab 恢复即时加载。
       _justExpanded = true;
-      setTimeout(() => { _justExpanded = false; }, 350);
+      setTimeout(() => {
+        _justExpanded = false;
+      }, OPENING_SETTLE_MS);
+      setTimeout(() => {
+        if (!isExpanded) return;
+        if (activeTab === 'home' || activeTab === 'apps') ensureAppsLoaded();
+        if (activeTab === 'home') renderClipFavs();
+        if (activeTab === 'clip') renderClipList();
+      }, HEAVY_LOAD_AFTER_OPEN_MS);
     } else {
-      // 收起窗口即释放摄像头（禁止常驻）
+      const motion = waitForPanelMotion();
+      syncPanelAccessibility(false);
+      // 隐私优先：不要把摄像头释放放在 rAF 之后，隐藏窗口可能暂停动画帧。
       stopMirror();
+      await ipcBeginCollapse();
       app.classList.add('closing');
-      await wait(170);
-      app.classList.remove('expanded', 'closing');
-      app.classList.add('collapsed');
+      await nextAnimationFrame();
+      await motion;
+      await nextAnimationFrame();
+      await nextAnimationFrame();
       await ipcSetMode('collapsed');
+      app.classList.remove('expanded', 'closing', 'opening');
+      app.classList.add('collapsed');
+      if (restoreNotchFocusAfterCollapse && document.hasFocus() && notch) {
+        notch.focus({ preventScroll: true });
+      }
+      restoreNotchFocusAfterCollapse = false;
     }
   } finally {
     modeBusy = false;
+    if (pendingMode !== null) {
+      const nextMode = pendingMode;
+      pendingMode = null;
+      if (nextMode !== isExpanded) setMode(nextMode);
+    }
   }
 }
 
@@ -189,6 +435,15 @@ notch.addEventListener('click', (e) => {
   e.stopPropagation();
   setMode(!isExpanded);
 });
+
+notch.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  if (e.repeat) return;
+  setMode(!isExpanded);
+});
+
+syncPanelAccessibility(false);
 
 panel.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -208,50 +463,44 @@ if (window.notchAPI && typeof window.notchAPI.onEscape === 'function') {
   });
 }
 
-// 主进程发起的收起（窗口失焦自动收起，主进程已瞬时缩窗）：只同步类与状态，不再回发 IPC
-if (window.notchAPI && typeof window.notchAPI.onCollapse === 'function') {
-  window.notchAPI.onCollapse(() => {
-    if (!isExpanded) return;
-    isExpanded = false;
-    app.classList.remove('expanded', 'closing');
-    app.classList.add('collapsed');
-    stopMirror();
+// 失焦与点击收起共用同一个状态机，保证退场节奏一致。
+if (window.notchAPI && typeof window.notchAPI.onCollapseRequest === 'function') {
+  window.notchAPI.onCollapseRequest(() => {
+    if (isExpanded) setMode(false);
   });
 }
 
-// 全局快捷键召唤：主进程已 applyMode('expanded')（瞬时放大窗口），
-// 渲染层只需同步展开态的类、切到剪贴板 Tab，不回发 window:set-mode（避免与主进程互相触发）。
+// 全局快捷键召唤也走同一套 Tab 与展开状态机，避免出现另一种突兀的入场路径。
 if (window.notchAPI && typeof window.notchAPI.onOpenClip === 'function') {
-  window.notchAPI.onOpenClip(() => {
-    if (!isExpanded) {
-      isExpanded = true;
-      app.classList.remove('collapsed', 'closing');
-      app.classList.add('expanded');
-      requestAnimationFrame(() => requestAnimationFrame(positionIndicator));
-    }
-    // 已展开时 setActiveTab 会走 morphToTab 变形到 clip 尺寸；未展开时上面刚补好类，
-    // 此处切 Tab 同样安全（tabBusy/pendingTab 机制兜底连点竞态）。
-    setActiveTab('clip');
+  window.notchAPI.onOpenClip(async () => {
+    await setActiveTab('clip');
+    if (!isExpanded) await setMode(true);
   });
 }
 
 // 布局度量（主进程按屏计算下发）：折叠条高 / 菜单栏占位高 / 各 Tab 目标尺寸
 let layoutMetrics = null;
 
+function applyLayoutMetrics(metrics) {
+  if (!metrics) return;
+  layoutMetrics = metrics;
+  if (metrics.stripHeight) {
+    document.documentElement.style.setProperty('--notch-h', `${metrics.stripHeight}px`);
+  }
+  if (metrics.menuBarHeight) {
+    document.documentElement.style.setProperty('--mb-h', `${metrics.menuBarHeight}px`);
+  }
+}
+
 if (window.notchAPI && typeof window.notchAPI.getMetrics === 'function') {
   window.notchAPI
     .getMetrics()
-    .then((m) => {
-      if (!m) return;
-      layoutMetrics = m;
-      if (m.stripHeight) {
-        document.documentElement.style.setProperty('--notch-h', `${m.stripHeight}px`);
-      }
-      if (m.menuBarHeight) {
-        document.documentElement.style.setProperty('--mb-h', `${m.menuBarHeight}px`);
-      }
-    })
+    .then(applyLayoutMetrics)
     .catch(() => {});
+}
+
+if (window.notchAPI && typeof window.notchAPI.onMetricsChanged === 'function') {
+  window.notchAPI.onMetricsChanged(applyLayoutMetrics);
 }
 
 // ============ Tab 切换 ============
@@ -274,8 +523,18 @@ function positionIndicator() {
 const topbarSearch = document.getElementById('topbar-search');
 
 function applyTabDom(name) {
-  tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
-  tabPanels.forEach((p) => p.classList.toggle('active', p.id === `tab-${name}`));
+  tabButtons.forEach((b) => {
+    const selected = b.dataset.tab === name;
+    b.classList.toggle('active', selected);
+    b.setAttribute('aria-selected', String(selected));
+    b.tabIndex = selected ? 0 : -1;
+  });
+  tabPanels.forEach((p) => {
+    const selected = p.id === `tab-${name}`;
+    p.classList.toggle('active', selected);
+    p.inert = !selected;
+    p.setAttribute('aria-hidden', String(!selected));
+  });
   // 搜索框只属于应用 Tab（顶栏中段）
   if (topbarSearch) topbarSearch.hidden = name !== 'apps';
   positionIndicator();
@@ -291,32 +550,10 @@ async function ipcSetTab(name) {
   }
 }
 
-// 展开态切 Tab：窗口与面板均瞬时贴新尺寸（无 width/height 补间，零重排），
-// 视觉桥接改为内容交叉淡入（opacity/translateY，纯合成层，GPU 完成，不触发 reflow）。
-// 三档尺寸严格有序（home < todo < apps），放大先变窗（透明区域不可见）、
-// 缩小后变窗（裁切不可见），时序意图保留，只是补间方式从 width/height→合成层淡入。
+// 固定展开尺寸下，Tab 只切换内容与指示器，不再改变原生窗口边界。
 async function morphToTab(name) {
-  const m = layoutMetrics;
-  const size = m && m.tabSizes && m.tabSizes[name];
-  if (!size) {
-    await ipcSetTab(name);
-    applyTabDom(name);
-    return;
-  }
-  const availW = window.screen && window.screen.availWidth ? window.screen.availWidth : size.width + 24;
-  const targetW = Math.min(size.width, availW - 24);
-  const growing = targetW >= window.innerWidth;
-  if (growing) {
-    // 放大：先瞬时扩大窗口（透明溢出区不可见），再切内容淡入
-    await ipcSetTab(name);
-    applyTabDom(name); // 内容交叉淡入（.tab-panel active 切换 + riseIn，GPU 合成层）
-    await wait(150);   // 与 .tab-panel.active 淡入过渡 220ms 大致重叠，留余量即可
-  } else {
-    // 缩小：先切内容淡入，再瞬时收缩窗口（裁切发生在新内容已显示之后）
-    applyTabDom(name);
-    await wait(150);   // 等内容淡入完成后再缩窗，避免裁切闪烁
-    await ipcSetTab(name);
-  }
+  await ipcSetTab(name);
+  applyTabDom(name);
   positionIndicator();
 }
 
@@ -340,7 +577,7 @@ async function setActiveTab(name) {
     if (name !== 'home') stopMirror();
     // 重活（apps 扫描 / 图片预加载）的调度策略：
     //   - 已展开态切 Tab：_justExpanded=false → 立即执行，保持即时响应
-    //   - 从折叠态展开（_justExpanded=true）：延后到展开动画落定后（~350ms）再跑，
+    //   - 从折叠态展开（_justExpanded=true）：延后到展开动画基本落定后再跑，
     //     避免与面板 scale 手势争首帧 CPU/GPU，消除展开卡顿
     // 注：ensureAppsLoaded 内部有缓存与在途去重，延后调用安全；
     //     renderClipFavs/renderClipList 延后只是缩略图晚一点出现，可接受
@@ -351,8 +588,10 @@ async function setActiveTab(name) {
       if (_tabNameForDeferred === 'clip') renderClipList();
     };
     if (_justExpanded) {
-      // 从折叠展开：双帧后再延 300ms，共约 330ms，让面板 scale 动画先走完
-      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(runHeavyLoads, 300)));
+      // 双帧后再延迟重活，让岛体形变先完成，避免抢首帧 CPU/GPU。
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => setTimeout(runHeavyLoads, HEAVY_LOAD_AFTER_OPEN_MS))
+      );
     } else {
       // 已展开态切 Tab：立即执行，无感知延迟
       runHeavyLoads();
@@ -391,6 +630,21 @@ tabButtons.forEach((btn) => {
     e.stopPropagation();
     setActiveTab(btn.dataset.tab);
   });
+  btn.addEventListener('keydown', (e) => {
+    const currentIndex = tabButtons.indexOf(btn);
+    let nextIndex = null;
+    if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabButtons.length;
+    if (e.key === 'ArrowLeft') {
+      nextIndex = (currentIndex - 1 + tabButtons.length) % tabButtons.length;
+    }
+    if (e.key === 'Home') nextIndex = 0;
+    if (e.key === 'End') nextIndex = tabButtons.length - 1;
+    if (nextIndex === null) return;
+    e.preventDefault();
+    const nextButton = tabButtons[nextIndex];
+    nextButton.focus({ preventScroll: true });
+    setActiveTab(nextButton.dataset.tab);
+  });
 });
 
 if (collapseBtn) {
@@ -427,41 +681,16 @@ function initTab() {
 PRIORITIES.forEach((priority) => {
   const input = document.querySelector(`.add-row input[data-priority="${priority}"]`);
   if (!input) return;
-  const row = input.closest('.add-row');
-
-  // 连按两次回车才提交：第一次回车进入“待确认”状态，第二次回车真正提交。
-  // 中途继续输入（按下其它键）或输入框失焦都会重置，必须是连续两次回车。
-  let armed = false;
-
-  function disarm() {
-    if (!armed) return;
-    armed = false;
-    if (row) row.classList.remove('armed');
-  }
 
   input.addEventListener('keydown', (e) => {
-    if (e.isComposing) return; // 输入法组合输入中，忽略
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!input.value.trim()) {
-        disarm();
-        return;
-      }
-      if (armed) {
-        addTodo(priority, input.value);
-        input.value = '';
-        disarm();
-      } else {
-        armed = true;
-        if (row) row.classList.add('armed');
-      }
-      return;
-    }
-    // 任意其它按键都重置确认，确保必须是连续两次回车
-    disarm();
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    const value = input.value;
+    if (!value.trim()) return;
+    input.value = '';
+    addTodo(priority, value);
   });
-
-  input.addEventListener('blur', disarm);
 });
 
 PRIORITIES.forEach((priority) => {
@@ -510,9 +739,549 @@ function tickClock() {
 tickClock();
 setInterval(tickClock, 1000);
 
-// ============ 首页 · 速记（防抖存储） ============
+// ============ 首页 · Markdown 速记 ============
+// textarea 中的原始 Markdown 始终是唯一数据源；预览只用 DOM API + textContent 构建，
+// 不执行用户输入的 HTML，也不自动加载远程图片。
 const NOTE_KEY = 'notch-home-note';
 const noteInput = document.getElementById('home-note');
+const notePreview = document.getElementById('home-note-preview');
+const noteFormatActions = document.getElementById('note-format-actions');
+const noteModeButtons = Array.from(document.querySelectorAll('[data-note-mode]'));
+const homeNote = document.querySelector('.home-note');
+
+const NOTE_INLINE_PATTERNS = [
+  { type: 'code', regex: /`([^`\n]+)`/g },
+  { type: 'link', regex: /\[([^\]\n]+)\]\(([^)\s]+)\)/g },
+  { type: 'strong', regex: /\*\*([^*\n]+)\*\*/g },
+  { type: 'strong', regex: /__([^_\n]+)__/g },
+  { type: 'delete', regex: /~~([^~\n]+)~~/g },
+  { type: 'emphasis', regex: /\*([^*\n]+)\*/g },
+  { type: 'emphasis', regex: /_([^_\n]+)_/g },
+];
+
+const NOTE_TASK_RE = /^\s*[-*+]\s+\[([ xX])\]\s+(.*)$/;
+const NOTE_BULLET_RE = /^\s*[-*+]\s+(.*)$/;
+const NOTE_ORDERED_RE = /^\s*(\d+)[.)]\s+(.*)$/;
+const NOTE_QUOTE_RE = /^\s*>\s?(.*)$/;
+const NOTE_HEADING_RE = /^\s{0,3}(#{1,6})\s+(.+)$/;
+const NOTE_FENCE_RE = /^\s*(`{3,}|~{3,})\s*([\w-]+)?\s*$/;
+const NOTE_RULE_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
+
+function findNextInlineToken(text, fromIndex) {
+  let next = null;
+  NOTE_INLINE_PATTERNS.forEach((pattern, priority) => {
+    pattern.regex.lastIndex = fromIndex;
+    const match = pattern.regex.exec(text);
+    if (
+      match &&
+      (!next || match.index < next.match.index ||
+        (match.index === next.match.index && priority < next.priority))
+    ) {
+      next = { type: pattern.type, match, priority };
+    }
+  });
+  return next;
+}
+
+function safeMarkdownUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function appendInlineMarkdown(parent, source, depth = 0) {
+  const text = String(source || '');
+  if (!text || depth > 6) {
+    if (text) parent.append(document.createTextNode(text));
+    return;
+  }
+
+  let cursor = 0;
+  while (cursor < text.length) {
+    const token = findNextInlineToken(text, cursor);
+    if (!token) {
+      parent.append(document.createTextNode(text.slice(cursor)));
+      break;
+    }
+
+    const { type, match } = token;
+    if (match.index > cursor) {
+      parent.append(document.createTextNode(text.slice(cursor, match.index)));
+    }
+
+    if (type === 'code') {
+      const code = document.createElement('code');
+      code.textContent = match[1];
+      parent.append(code);
+    } else if (type === 'link') {
+      const href = safeMarkdownUrl(match[2]);
+      if (!href) {
+        parent.append(document.createTextNode(match[0]));
+      } else {
+        const link = document.createElement('a');
+        link.dataset.noteHref = href;
+        link.setAttribute('role', 'link');
+        link.tabIndex = 0;
+        link.rel = 'noreferrer';
+        appendInlineMarkdown(link, match[1], depth + 1);
+        parent.append(link);
+      }
+    } else {
+      const tagName = type === 'strong' ? 'strong' : type === 'delete' ? 'del' : 'em';
+      const formatted = document.createElement(tagName);
+      appendInlineMarkdown(formatted, match[1], depth + 1);
+      parent.append(formatted);
+    }
+
+    cursor = match.index + match[0].length;
+  }
+}
+
+function appendMarkdownLines(parent, lines) {
+  lines.forEach((line, index) => {
+    if (index > 0) parent.append(document.createElement('br'));
+    appendInlineMarkdown(parent, line);
+  });
+}
+
+function isMarkdownBlockStart(line) {
+  if (!line.trim()) return true;
+  return (
+    NOTE_FENCE_RE.test(line) ||
+    NOTE_HEADING_RE.test(line) ||
+    NOTE_QUOTE_RE.test(line) ||
+    NOTE_TASK_RE.test(line) ||
+    NOTE_ORDERED_RE.test(line) ||
+    NOTE_BULLET_RE.test(line) ||
+    NOTE_RULE_RE.test(line)
+  );
+}
+
+function buildMarkdownPreview(source) {
+  const fragment = document.createDocumentFragment();
+  const normalized = String(source || '').replace(/\r\n?/g, '\n');
+
+  if (!normalized.trim()) {
+    const empty = document.createElement('p');
+    empty.className = 'note-preview-empty';
+    empty.textContent = '写点内容后，在这里查看排版';
+    fragment.append(empty);
+    return fragment;
+  }
+
+  const lines = normalized.split('\n');
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    const fenceMatch = line.match(NOTE_FENCE_RE);
+    if (fenceMatch) {
+      const fenceChar = fenceMatch[1][0];
+      const fenceLength = fenceMatch[1].length;
+      const closeFence = new RegExp('^\\s*' + fenceChar + '{' + fenceLength + ',}\\s*$');
+      const codeLines = [];
+      index += 1;
+      while (index < lines.length && !closeFence.test(lines[index])) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) index += 1;
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      if (fenceMatch[2]) code.dataset.language = fenceMatch[2];
+      code.textContent = codeLines.join('\n');
+      pre.append(code);
+      fragment.append(pre);
+      continue;
+    }
+
+    const headingMatch = line.match(NOTE_HEADING_RE);
+    if (headingMatch) {
+      const heading = document.createElement('h' + headingMatch[1].length);
+      appendInlineMarkdown(heading, headingMatch[2]);
+      fragment.append(heading);
+      index += 1;
+      continue;
+    }
+
+    if (NOTE_RULE_RE.test(line)) {
+      fragment.append(document.createElement('hr'));
+      index += 1;
+      continue;
+    }
+
+    const quoteMatch = line.match(NOTE_QUOTE_RE);
+    if (quoteMatch) {
+      const quoteLines = [];
+      while (index < lines.length) {
+        const match = lines[index].match(NOTE_QUOTE_RE);
+        if (!match) break;
+        quoteLines.push(match[1]);
+        index += 1;
+      }
+      const quote = document.createElement('blockquote');
+      appendMarkdownLines(quote, quoteLines);
+      fragment.append(quote);
+      continue;
+    }
+
+    const taskMatch = line.match(NOTE_TASK_RE);
+    if (taskMatch) {
+      const list = document.createElement('ul');
+      list.className = 'note-task-list';
+      while (index < lines.length) {
+        const match = lines[index].match(NOTE_TASK_RE);
+        if (!match) break;
+        const done = match[1].toLowerCase() === 'x';
+        const item = document.createElement('li');
+        item.className = 'note-task-item' + (done ? ' done' : '');
+        item.setAttribute('role', 'checkbox');
+        item.setAttribute('aria-checked', String(done));
+        const box = document.createElement('span');
+        box.className = 'note-task-box';
+        box.setAttribute('aria-hidden', 'true');
+        box.textContent = done ? '✓' : '';
+        const content = document.createElement('span');
+        appendInlineMarkdown(content, match[2]);
+        item.append(box, content);
+        list.append(item);
+        index += 1;
+      }
+      fragment.append(list);
+      continue;
+    }
+
+    const orderedMatch = line.match(NOTE_ORDERED_RE);
+    if (orderedMatch) {
+      const list = document.createElement('ol');
+      const start = Number.parseInt(orderedMatch[1], 10);
+      if (Number.isFinite(start) && start !== 1) list.start = start;
+      while (index < lines.length) {
+        const match = lines[index].match(NOTE_ORDERED_RE);
+        if (!match) break;
+        const item = document.createElement('li');
+        appendInlineMarkdown(item, match[2]);
+        list.append(item);
+        index += 1;
+      }
+      fragment.append(list);
+      continue;
+    }
+
+    const bulletMatch = line.match(NOTE_BULLET_RE);
+    if (bulletMatch) {
+      const list = document.createElement('ul');
+      while (index < lines.length) {
+        if (NOTE_TASK_RE.test(lines[index])) break;
+        const match = lines[index].match(NOTE_BULLET_RE);
+        if (!match) break;
+        const item = document.createElement('li');
+        appendInlineMarkdown(item, match[1]);
+        list.append(item);
+        index += 1;
+      }
+      fragment.append(list);
+      continue;
+    }
+
+    const paragraphLines = [line];
+    index += 1;
+    while (index < lines.length && !isMarkdownBlockStart(lines[index])) {
+      paragraphLines.push(lines[index]);
+      index += 1;
+    }
+    const paragraph = document.createElement('p');
+    appendMarkdownLines(paragraph, paragraphLines);
+    fragment.append(paragraph);
+  }
+
+  return fragment;
+}
+
+function renderNotePreview() {
+  if (!noteInput || !notePreview) return;
+  notePreview.replaceChildren(buildMarkdownPreview(noteInput.value));
+}
+
+function replaceNoteText(
+  start,
+  end,
+  replacement,
+  selectionStart,
+  selectionEnd,
+  selectionDirection = 'none'
+) {
+  if (!noteInput) return;
+  noteInput.setRangeText(replacement, start, end, 'end');
+  noteInput.focus({ preventScroll: true });
+  noteInput.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+  noteInput.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function wrapNoteSelection(open, close, placeholder) {
+  if (!noteInput) return;
+  const start = noteInput.selectionStart;
+  const end = noteInput.selectionEnd;
+  const direction = noteInput.selectionDirection;
+  const selected = noteInput.value.slice(start, end);
+
+  const hasOuterMarkers =
+    selected &&
+    start >= open.length &&
+    noteInput.value.slice(start - open.length, start) === open &&
+    noteInput.value.slice(end, end + close.length) === close;
+  if (hasOuterMarkers) {
+    replaceNoteText(
+      start - open.length,
+      end + close.length,
+      selected,
+      start - open.length,
+      end - open.length,
+      direction
+    );
+    return;
+  }
+
+  if (selected && selected.startsWith(open) && selected.endsWith(close)) {
+    const unwrapped = selected.slice(open.length, selected.length - close.length);
+    replaceNoteText(start, end, unwrapped, start, start + unwrapped.length, direction);
+    return;
+  }
+
+  const content = selected || placeholder;
+  const replacement = open + content + close;
+  replaceNoteText(
+    start,
+    end,
+    replacement,
+    start + open.length,
+    start + open.length + content.length,
+    direction
+  );
+}
+
+function stripNoteBlockPrefix(line) {
+  return line.replace(
+    /^(?:#{1,6}\s+|>\s+|[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)/,
+    ''
+  );
+}
+
+function applyNoteLineFormat(type) {
+  if (!noteInput) return;
+  const value = noteInput.value;
+  const start = noteInput.selectionStart;
+  const end = noteInput.selectionEnd;
+  const direction = noteInput.selectionDirection;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd;
+  if (end > start && value[end - 1] === '\n') {
+    lineEnd = end - 1;
+  } else {
+    const nextBreak = value.indexOf('\n', end);
+    lineEnd = nextBreak === -1 ? value.length : nextBreak;
+  }
+
+  const original = value.slice(lineStart, lineEnd);
+  const lines = original.split('\n');
+  const matchers = {
+    heading: /^#{1,6}\s+/,
+    bullet: /^[-*+]\s+(?!\[[ xX]\]\s+)/,
+    ordered: /^\d+[.)]\s+/,
+    task: /^[-*+]\s+\[[ xX]\]\s+/,
+    quote: /^>\s+/,
+  };
+  const matcher = matchers[type];
+  if (!matcher) return;
+  const nonEmptyLines = lines.filter((line) => line.trim());
+  const shouldRemove =
+    nonEmptyLines.length > 0 &&
+    nonEmptyLines.every((line) => matcher.test(line.trimStart()));
+  let orderedIndex = 1;
+
+  const transformed = lines.map((line) => {
+    if (!line.trim() && lines.length > 1) return line;
+    const indentation = line.match(/^\s*/)[0];
+    const body = line.slice(indentation.length);
+    if (shouldRemove) return indentation + body.replace(matcher, '');
+    const content = stripNoteBlockPrefix(body) || (
+      type === 'heading' ? '标题' :
+      type === 'task' ? '待办' :
+      type === 'quote' ? '引用' : '项目'
+    );
+    if (type === 'ordered') return indentation + String(orderedIndex++) + '. ' + content;
+    if (type === 'heading') return indentation + '# ' + content;
+    if (type === 'task') return indentation + '- [ ] ' + content;
+    if (type === 'quote') return indentation + '> ' + content;
+    return indentation + '- ' + content;
+  }).join('\n');
+
+  const emptySingleLine = lines.length === 1 && !original.trim() && !shouldRemove;
+  let nextStart = lineStart;
+  let nextEnd = lineStart + transformed.length;
+  if (emptySingleLine) {
+    const indentationLength = original.match(/^\s*/)[0].length;
+    const prefixLength =
+      type === 'heading' ? 2 :
+      type === 'task' ? 6 :
+      type === 'ordered' ? 3 : 2;
+    nextStart += indentationLength + prefixLength;
+  }
+  replaceNoteText(lineStart, lineEnd, transformed, nextStart, nextEnd, direction);
+}
+
+function applyNoteLink() {
+  if (!noteInput) return;
+  const start = noteInput.selectionStart;
+  const end = noteInput.selectionEnd;
+  const direction = noteInput.selectionDirection;
+  const selected = noteInput.value.slice(start, end);
+  const label = selected || '链接文字';
+  const url = 'https://';
+  const replacement = '[' + label + '](' + url + ')';
+  if (selected) {
+    const urlStart = start + label.length + 3;
+    replaceNoteText(start, end, replacement, urlStart, urlStart + url.length, direction);
+  } else {
+    replaceNoteText(start, end, replacement, start + 1, start + 1 + label.length, direction);
+  }
+}
+
+let noteComposing = false;
+
+function applyNoteFormat(type) {
+  if (!noteInput || noteComposing) return;
+  if (type === 'bold') return wrapNoteSelection('**', '**', '加粗文字');
+  if (type === 'italic') return wrapNoteSelection('*', '*', '斜体文字');
+  if (type === 'code') return wrapNoteSelection('`', '`', '代码');
+  if (type === 'link') return applyNoteLink();
+  applyNoteLineFormat(type);
+}
+
+let noteMode = 'edit';
+let noteSelection = { start: 0, end: 0, direction: 'none', scrollTop: 0 };
+
+function setNoteMode(mode, focusTarget = true) {
+  if (!noteInput || !notePreview) return;
+  const previousMode = noteMode;
+  noteMode = mode === 'preview' ? 'preview' : 'edit';
+  const isPreview = noteMode === 'preview';
+
+  if (isPreview) {
+    noteSelection = {
+      start: noteInput.selectionStart,
+      end: noteInput.selectionEnd,
+      direction: noteInput.selectionDirection,
+      scrollTop: noteInput.scrollTop,
+    };
+    renderNotePreview();
+  } else if (previousMode === 'edit') {
+    // 重复点击已选中的“编辑”时保留用户当下光标，而不是恢复旧选区。
+    noteSelection = {
+      start: noteInput.selectionStart,
+      end: noteInput.selectionEnd,
+      direction: noteInput.selectionDirection,
+      scrollTop: noteInput.scrollTop,
+    };
+  }
+
+  noteInput.hidden = isPreview;
+  notePreview.hidden = !isPreview;
+  if (noteFormatActions) noteFormatActions.hidden = isPreview;
+  if (homeNote) homeNote.classList.toggle('is-preview', isPreview);
+  noteModeButtons.forEach((button) => {
+    const active = button.dataset.noteMode === noteMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+
+  if (!focusTarget) return;
+  requestAnimationFrame(() => {
+    if (isPreview) {
+      notePreview.focus({ preventScroll: true });
+    } else {
+      noteInput.focus({ preventScroll: true });
+      noteInput.setSelectionRange(
+        noteSelection.start,
+        noteSelection.end,
+        noteSelection.direction
+      );
+      noteInput.scrollTop = noteSelection.scrollTop;
+    }
+  });
+}
+
+function continueNoteList(event) {
+  if (
+    !noteInput ||
+    event.key !== 'Enter' ||
+    event.shiftKey ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.isComposing ||
+    noteComposing ||
+    noteInput.selectionStart !== noteInput.selectionEnd
+  ) {
+    return false;
+  }
+
+  const value = noteInput.value;
+  const cursor = noteInput.selectionStart;
+  const lineStart = value.lastIndexOf('\n', cursor - 1) + 1;
+  const nextBreak = value.indexOf('\n', cursor);
+  const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+  const line = value.slice(lineStart, lineEnd);
+  const patterns = [
+    {
+      regex: /^(\s*)[-*+]\s+\[[ xX]\]\s*(.*)$/,
+      prefix: () => '- [ ] ',
+    },
+    {
+      regex: /^(\s*)(\d+)[.)]\s+(.*)$/,
+      prefix: (match) => String(Number.parseInt(match[2], 10) + 1) + '. ',
+    },
+    {
+      regex: /^(\s*)[-*+]\s+(.*)$/,
+      prefix: () => '- ',
+    },
+    {
+      regex: /^(\s*)>\s?(.*)$/,
+      prefix: () => '> ',
+    },
+  ];
+
+  const definition = patterns.find((candidate) => candidate.regex.test(line));
+  if (!definition) return false;
+  const match = line.match(definition.regex);
+  const content = match[match.length - 1];
+  const indentation = match[1];
+  event.preventDefault();
+
+  if (!content.trim()) {
+    replaceNoteText(
+      lineStart,
+      lineEnd,
+      indentation,
+      lineStart + indentation.length,
+      lineStart + indentation.length
+    );
+    return true;
+  }
+
+  const prefix = indentation + definition.prefix(match);
+  const insertion = '\n' + prefix;
+  replaceNoteText(cursor, cursor, insertion, cursor + insertion.length, cursor + insertion.length);
+  return true;
+}
 
 if (noteInput) {
   try {
@@ -520,16 +1289,83 @@ if (noteInput) {
   } catch (e) {
     // ignore
   }
+
   let noteTimer = null;
+  const saveNote = () => {
+    if (noteTimer) clearTimeout(noteTimer);
+    noteTimer = null;
+    try {
+      localStorage.setItem(NOTE_KEY, noteInput.value);
+    } catch (e) {
+      // ignore quota errors
+    }
+  };
+
   noteInput.addEventListener('input', () => {
+    renderNotePreview();
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(NOTE_KEY, noteInput.value);
-      } catch (e) {
-        // ignore quota errors
-      }
-    }, 300);
+    noteTimer = setTimeout(saveNote, 300);
+  });
+  noteInput.addEventListener('blur', saveNote);
+  noteInput.addEventListener('compositionstart', () => {
+    noteComposing = true;
+  });
+  noteInput.addEventListener('compositionend', () => {
+    noteComposing = false;
+  });
+  noteInput.addEventListener('keydown', (event) => {
+    if (continueNoteList(event)) return;
+    if (!(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing) return;
+    const key = event.key.toLowerCase();
+    if (key !== 'b' && key !== 'i') return;
+    event.preventDefault();
+    applyNoteFormat(key === 'b' ? 'bold' : 'italic');
+  });
+
+  window.addEventListener('beforeunload', saveNote);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) saveNote();
+  });
+
+  renderNotePreview();
+  setNoteMode('edit', false);
+}
+
+if (noteFormatActions) {
+  noteFormatActions.addEventListener('mousedown', (event) => {
+    if (event.target.closest('[data-note-format]')) event.preventDefault();
+  });
+  noteFormatActions.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-note-format]');
+    if (!button) return;
+    applyNoteFormat(button.dataset.noteFormat);
+  });
+}
+
+noteModeButtons.forEach((button) => {
+  button.addEventListener('click', () => setNoteMode(button.dataset.noteMode));
+});
+
+if (notePreview) {
+  notePreview.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-note-href]');
+    if (!link) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const href = safeMarkdownUrl(link.dataset.noteHref);
+    if (href && window.notchAPI && typeof window.notchAPI.openExternal === 'function') {
+      window.notchAPI.openExternal(href).catch(() => {});
+    }
+  });
+  notePreview.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const link = event.target.closest('[data-note-href]');
+    if (!link) return;
+    event.preventDefault();
+    const href = safeMarkdownUrl(link.dataset.noteHref);
+    if (href && window.notchAPI && typeof window.notchAPI.openExternal === 'function') {
+      window.notchAPI.openExternal(href).catch(() => {});
+    }
   });
 }
 
@@ -559,6 +1395,10 @@ function stopMirror() {
     }
   }
   if (homeMirror) homeMirror.classList.remove('live');
+  if (mirrorStage) {
+    mirrorStage.setAttribute('aria-label', '开启镜子');
+    mirrorStage.setAttribute('aria-pressed', 'false');
+  }
   if (mirrorHint) mirrorHint.textContent = '点按开启';
 }
 
@@ -589,6 +1429,10 @@ async function startMirror() {
       mirrorVideo.play().catch(() => {});
     }
     if (homeMirror) homeMirror.classList.add('live');
+    if (mirrorStage) {
+      mirrorStage.setAttribute('aria-label', '关闭镜子');
+      mirrorStage.setAttribute('aria-pressed', 'true');
+    }
   } catch (e) {
     if (mirrorHint) mirrorHint.textContent = '无法访问摄像头';
   } finally {
@@ -709,10 +1553,12 @@ function appItemHtml(appInfo, faved, canDrag) {
   const favLabel = faved ? '取消收藏' : '收藏';
   const dragAttr = canDrag ? ' draggable="true"' : '';
   return `
-    <div class="app-item" data-path="${escapeHtml(appInfo.path)}" data-action="launch" title="${safeName}"${dragAttr}>
-      <button class="app-fav-toggle${favClass}" data-action="fav" aria-label="${favLabel}">${star}</button>
-      <div class="app-icon${iconClass}">${iconInner}</div>
-      <span class="app-name">${safeName}</span>
+    <div class="app-item" data-path="${escapeHtml(appInfo.path)}" title="${safeName}"${dragAttr}>
+      <button class="app-launch" type="button" data-action="launch" aria-label="打开 ${safeName}">
+        <span class="app-icon${iconClass}">${iconInner}</span>
+        <span class="app-name">${safeName}</span>
+      </button>
+      <button class="app-fav-toggle${favClass}" type="button" data-action="fav" aria-label="${favLabel}">${star}</button>
     </div>
   `;
 }
@@ -790,13 +1636,18 @@ async function ensureAppsLoaded() {
   }
 }
 
-function launchApp(path) {
+async function launchApp(path) {
   if (!path || !window.notchAPI || typeof window.notchAPI.launchApp !== 'function')
     return;
-  window.notchAPI.launchApp(path).catch(() => {});
+  try {
+    const opened = await window.notchAPI.launchApp(path);
+    if (!opened) showStatusToast(`无法打开 ${quickAppName(path)}`);
+  } catch (e) {
+    showStatusToast(`无法打开 ${quickAppName(path)}`);
+  }
 }
 
-function toggleAppFavorite(path) {
+function toggleAppFavorite(path, focusContext = null) {
   if (appFavorites.includes(path)) {
     appFavorites = appFavorites.filter((p) => p !== path);
   } else {
@@ -804,6 +1655,13 @@ function toggleAppFavorite(path) {
   }
   saveAppFavorites(appFavorites);
   renderApps();
+  if (focusContext && focusContext.restoreFocus) {
+    const sourceGrid = focusContext.gridId && document.getElementById(focusContext.gridId);
+    const selector = `.app-item[data-path="${CSS.escape(path)}"] [data-action="fav"]`;
+    const target = (sourceGrid && sourceGrid.querySelector(selector)) ||
+      (appsScroll && appsScroll.querySelector(selector));
+    if (target) target.focus({ preventScroll: true });
+  }
 }
 
 // 事件委托：滚动容器内监听 launch / fav
@@ -813,10 +1671,16 @@ if (appsScroll) {
     const favBtn = e.target.closest('[data-action="fav"]');
     if (favBtn) {
       const item = favBtn.closest('.app-item');
-      if (item) toggleAppFavorite(item.dataset.path);
+      if (item) {
+        toggleAppFavorite(item.dataset.path, {
+          restoreFocus: document.activeElement === favBtn,
+          gridId: item.parentElement && item.parentElement.id,
+        });
+      }
       return;
     }
-    const item = e.target.closest('.app-item[data-action="launch"]');
+    const launchButton = e.target.closest('[data-action="launch"]');
+    const item = launchButton && launchButton.closest('.app-item');
     if (item) launchApp(item.dataset.path);
   });
 }
@@ -915,21 +1779,33 @@ function quickAppName(p) {
 
 function renderHomeFavs() {
   if (!quickappsGrid) return;
-  const favs = appFavorites.slice(0, QUICKAPPS_MAX);
+  const favs = appsCache
+    ? appFavorites
+        .map((p) => appsCache.find((appInfo) => appInfo.path === p))
+        .filter(Boolean)
+        .slice(0, QUICKAPPS_MAX)
+    : appFavorites.slice(0, QUICKAPPS_MAX).map((p) => ({
+        name: quickAppName(p),
+        path: p,
+        icon: null,
+      }));
   if (!favs.length) {
     quickappsGrid.innerHTML =
       '<button class="quickapps-empty" type="button" data-action="goto-apps">去“应用”页给常用加星 →</button>';
     return;
   }
   quickappsGrid.innerHTML = favs
-    .map((p) => {
-      const info = appsCache ? appsCache.find((a) => a.path === p) : null;
-      const name = info ? info.name : quickAppName(p);
-      const inner =
-        info && info.icon
-          ? `<img src="${escapeHtml(info.icon)}" alt="" draggable="false" />`
+    .map((info) => {
+      const name = info.name || quickAppName(info.path);
+      const icon = info.icon
+        ? `<img src="${escapeHtml(info.icon)}" alt="" draggable="false" />`
           : `<span class="quickapp-glyph">${escapeHtml(name.trim().charAt(0) || '·')}</span>`;
-      return `<button class="quickapp-item" type="button" data-path="${escapeHtml(p)}" title="${escapeHtml(name)}">${inner}</button>`;
+      return (
+        `<button class="quickapp-item" type="button" data-path="${escapeHtml(info.path)}" title="${escapeHtml(name)}">` +
+        `<span class="quickapp-icon">${icon}</span>` +
+        `<span class="quickapp-name">${escapeHtml(name)}</span>` +
+        `</button>`
+      );
     })
     .join('');
 }
@@ -1029,7 +1905,7 @@ function renderClipFavs() {
 }
 
 if (clipfavListEl) {
-  clipfavListEl.addEventListener('click', (e) => {
+  clipfavListEl.addEventListener('click', async (e) => {
     e.stopPropagation();
     // 空态：跳转 clip Tab
     if (e.target.closest('[data-action="goto-clip"]')) {
@@ -1040,9 +1916,19 @@ if (clipfavListEl) {
     const item = e.target.closest('.clipfav-item[data-id]');
     if (item) {
       const id = item.dataset.id;
-      // 复制写回系统剪贴板
-      copyClipEntry(id);
-      // copied 反馈：也在首页显示
+      if (await copyClipEntry(id)) {
+        item.classList.add('copied');
+        setTimeout(() => item.classList.remove('copied'), 800);
+      }
+    }
+  });
+  clipfavListEl.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.repeat) return;
+    const item = e.target.closest('.clipfav-item[data-id]');
+    if (!item) return;
+    e.preventDefault();
+    if (await copyClipEntry(item.dataset.id)) {
       item.classList.add('copied');
       setTimeout(() => item.classList.remove('copied'), 800);
     }
@@ -1061,10 +1947,25 @@ function loadClipHistory() {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed;
+    return parsed.map(normalizeClipEntry).filter(Boolean);
   } catch (e) {
     return [];
   }
+}
+
+function normalizeClipEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const type = ['text', 'url', 'image'].includes(entry.type) ? entry.type : 'text';
+  const text = typeof entry.text === 'string' ? entry.text : null;
+  const imagePath = typeof entry.imagePath === 'string' ? entry.imagePath : null;
+  if (type === 'image' ? !imagePath : text === null) return null;
+  return {
+    id: typeof entry.id === 'string' && entry.id ? entry.id : generateId(),
+    type,
+    text,
+    imagePath,
+    timestamp: Number.isFinite(entry.timestamp) ? entry.timestamp : Date.now(),
+  };
 }
 
 function saveClipHistory(list) {
@@ -1109,6 +2010,8 @@ let lastRenderedFavsVersion = -1; // renderClipFavs 上次渲染时的版本号
 
 const clipListEl = document.getElementById('clip-list');
 const clipToolbarEl = document.getElementById('clip-toolbar');
+const clipClearBtn = document.getElementById('clip-clear-btn');
+let clipClearArmed = false;
 
 // 防重入标志：renderClipList 内按需图片预加载完成后的二次渲染
 let clipRenderPending = false;
@@ -1190,6 +2093,7 @@ async function addClipEntry(raw) {
 
   clipDataVersion++; // clipHistory 已变（含 FIFO 淘汰、dedup 移除）
   renderClipList();
+  renderClipFavs();
 }
 
 function formatClipTime(ts) {
@@ -1205,6 +2109,7 @@ function formatClipTime(ts) {
 function clipEntryHtml(entry, faved) {
   const favClass = faved ? ' faved' : '';
   const star = faved ? starFilledSvg : starOutlineSvg;
+  const favLabel = faved ? '取消收藏' : '收藏';
   const timeStr = escapeHtml(formatClipTime(entry.timestamp));
   const safeId = escapeHtml(entry.id);
 
@@ -1212,12 +2117,14 @@ function clipEntryHtml(entry, faved) {
     const dataUrl = entry.imagePath ? clipImageCache.get(entry.imagePath) : null;
     const thumbHtml = dataUrl
       ? `<img class="clip-thumb" src="${escapeHtml(dataUrl)}" alt="图片" draggable="false"/>`
-      : `<div class="clip-thumb-placeholder">图片加载中…</div>`;
-    return `<div class="clip-item clip-item-image clip-type-image" data-id="${safeId}" data-action="copy">
-  <div class="clip-thumb-wrap">${thumbHtml}</div>
-  <div class="clip-meta"><span class="clip-type-badge clip-badge-image">图片</span><span class="clip-time">${timeStr}</span></div>
-  <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
-  <button class="clip-del-btn" data-action="delete" aria-label="删除">×</button>
+      : `<span class="clip-thumb-placeholder">图片加载中…</span>`;
+    return `<div class="clip-item clip-item-image clip-type-image" data-id="${safeId}">
+  <button class="clip-copy-target" type="button" data-action="copy" aria-label="复制图片">
+    <span class="clip-thumb-wrap">${thumbHtml}</span>
+    <span class="clip-meta"><span class="clip-time">${timeStr}</span></span>
+  </button>
+  <button class="clip-fav-btn${favClass}" type="button" data-action="fav" aria-label="${favLabel}">${star}</button>
+  <button class="clip-del-btn" type="button" data-action="delete" aria-label="删除">×</button>
 </div>`;
   }
 
@@ -1225,12 +2132,16 @@ function clipEntryHtml(entry, faved) {
   const safeText = escapeHtml(entry.text || '');
   const isUrl = entry.type === 'url' || (entry.text && CLIP_URL_RE.test(entry.text));
   const typeClass = isUrl ? 'clip-type-url' : 'clip-type-text';
-  const badgeHtml = isUrl ? '<span class="clip-type-badge clip-badge-url">链接</span>' : '';
-  return `<div class="clip-item clip-item-text ${typeClass}" data-id="${safeId}" data-action="copy">
-  <p class="clip-text">${safeText}</p>
-  <div class="clip-meta">${badgeHtml}<span class="clip-time">${timeStr}</span></div>
-  <button class="clip-fav-btn${favClass}" data-action="fav" aria-label="收藏">${star}</button>
-  <button class="clip-del-btn" data-action="delete" aria-label="删除">×</button>
+  const accessiblePreview = escapeHtml(
+    (entry.text || '').replace(/\s+/g, ' ').trim().slice(0, 80) || '空白内容'
+  );
+  return `<div class="clip-item clip-item-text ${typeClass}" data-id="${safeId}">
+  <button class="clip-copy-target" type="button" data-action="copy" aria-label="复制：${accessiblePreview}">
+    <span class="clip-text">${safeText}</span>
+    <span class="clip-meta"><span class="clip-time">${timeStr}</span></span>
+  </button>
+  <button class="clip-fav-btn${favClass}" type="button" data-action="fav" aria-label="${favLabel}">${star}</button>
+  <button class="clip-del-btn" type="button" data-action="delete" aria-label="删除">×</button>
 </div>`;
 }
 
@@ -1294,15 +2205,21 @@ if (clipToolbarEl) {
     const filterBtn = e.target.closest('.clip-filter');
     if (filterBtn) {
       clipFilter = filterBtn.dataset.filter || 'all';
-      clipToolbarEl.querySelectorAll('.clip-filter').forEach((b) => b.classList.remove('active'));
-      filterBtn.classList.add('active');
+      clipToolbarEl.querySelectorAll('.clip-filter').forEach((b) => {
+        const selected = b === filterBtn;
+        b.classList.toggle('active', selected);
+        b.setAttribute('aria-pressed', String(selected));
+      });
       clipDataVersion++; // clipFilter 已变 → 输出变化
       renderClipList();
       return;
     }
     if (e.target.closest('#clip-clear-btn')) {
-      clearClipHistory();
+      requestClearClipHistory();
     }
+  });
+  clipToolbarEl.querySelectorAll('.clip-filter').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.classList.contains('active')));
   });
 }
 
@@ -1316,20 +2233,44 @@ if (clipListEl) {
     if (!id) return;
 
     // 优先判断子按钮
-    if (e.target.closest('.clip-fav-btn')) {
-      toggleClipFavorite(id);
+    const favoriteButton = e.target.closest('.clip-fav-btn');
+    if (favoriteButton) {
+      toggleClipFavorite(id, {
+        restoreFocus: document.activeElement === favoriteButton,
+        nextId: item.nextElementSibling && item.nextElementSibling.dataset.id,
+        previousId: item.previousElementSibling && item.previousElementSibling.dataset.id,
+      });
       return;
     }
-    if (e.target.closest('.clip-del-btn')) {
-      deleteClipEntry(id);
+    const deleteButton = e.target.closest('.clip-del-btn');
+    if (deleteButton) {
+      deleteClipEntry(id, {
+        restoreFocus: document.activeElement === deleteButton,
+        nextId: item.nextElementSibling && item.nextElementSibling.dataset.id,
+        previousId: item.previousElementSibling && item.previousElementSibling.dataset.id,
+      });
       return;
     }
-    // 点条目本体：复制
-    copyClipEntry(id);
+    if (e.target.closest('[data-action="copy"]')) copyClipEntry(id);
   });
 }
 
-function toggleClipFavorite(id) {
+function focusClipControl(ids, action = 'copy') {
+  if (!clipListEl) return;
+  for (const id of ids.filter(Boolean)) {
+    const target = clipListEl.querySelector(
+      `.clip-item[data-id="${CSS.escape(id)}"] [data-action="${action}"]`
+    );
+    if (target) {
+      target.focus({ preventScroll: true });
+      return;
+    }
+  }
+  const activeFilter = clipToolbarEl && clipToolbarEl.querySelector('.clip-filter.active');
+  if (activeFilter) activeFilter.focus({ preventScroll: true });
+}
+
+function toggleClipFavorite(id, focusContext = null) {
   const idx = clipFavorites.indexOf(id);
   if (idx === -1) {
     clipFavorites.push(id);
@@ -1340,28 +2281,99 @@ function toggleClipFavorite(id) {
   saveClipFavorites(clipFavorites);
   renderClipList();
   renderClipFavs();
+  if (focusContext && focusContext.restoreFocus) {
+    const sameItemButton = clipListEl && clipListEl.querySelector(
+      `.clip-item[data-id="${CSS.escape(id)}"] [data-action="fav"]`
+    );
+    if (sameItemButton) {
+      sameItemButton.focus({ preventScroll: true });
+    } else {
+      focusClipControl([focusContext.nextId, focusContext.previousId]);
+    }
+  }
 }
 
-function deleteClipEntry(id) {
+function deleteClipEntry(id, focusContext = null) {
   const idx = clipHistory.findIndex((e) => e.id === id);
   if (idx === -1) return;
   const entry = clipHistory[idx];
+  const favoriteIndex = clipFavorites.indexOf(id);
   clipHistory.splice(idx, 1);
   clipFavorites = clipFavorites.filter((fid) => fid !== id);
   clipDataVersion++; // clipHistory + clipFavorites 已变
   saveClipHistory(clipHistory);
   saveClipFavorites(clipFavorites);
-  if (entry.type === 'image' && entry.imagePath) {
-    clipImageCache.delete(entry.imagePath);
-    if (window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
-      window.notchAPI.deleteClipImages([entry.imagePath]).catch(() => {});
-    }
-  }
   renderClipList();
   renderClipFavs();
+  if (focusContext && focusContext.restoreFocus) {
+    focusClipControl([focusContext.nextId, focusContext.previousId]);
+  }
+  showStatusToast('已删除剪贴记录', {
+    actionLabel: '撤销',
+    duration: 5000,
+    onAction: () => {
+      if (clipHistory.some((item) => item.id === id)) return;
+      clipHistory.splice(Math.min(idx, clipHistory.length), 0, entry);
+      if (favoriteIndex !== -1) {
+        clipFavorites.splice(Math.min(favoriteIndex, clipFavorites.length), 0, id);
+      }
+      clipDataVersion++;
+      saveClipHistory(clipHistory);
+      saveClipFavorites(clipFavorites);
+      renderClipList();
+      renderClipFavs();
+      focusClipControl([id]);
+      showStatusToast('已撤销删除');
+    },
+    onExpire: () => {
+      if (entry.type !== 'image' || !entry.imagePath) return;
+      clipImageCache.delete(entry.imagePath);
+      if (window.notchAPI && typeof window.notchAPI.deleteClipImages === 'function') {
+        window.notchAPI.deleteClipImages([entry.imagePath]).catch(() => {});
+      }
+    },
+  });
+}
+
+function resetClipClearConfirmation() {
+  clipClearArmed = false;
+  if (clipClearBtn) {
+    clipClearBtn.classList.remove('confirming');
+    clipClearBtn.setAttribute('aria-label', '清空历史');
+  }
+}
+
+function requestClearClipHistory() {
+  if (clipHistory.length === 0) {
+    showStatusToast('剪贴板历史已是空的');
+    return;
+  }
+  if (!clipClearArmed) {
+    clipClearArmed = true;
+    if (clipClearBtn) {
+      clipClearBtn.classList.add('confirming');
+      clipClearBtn.setAttribute('aria-label', `再次点击确认清空 ${clipHistory.length} 条历史`);
+    }
+    showStatusToast(`再点一次垃圾桶，清空 ${clipHistory.length} 条记录`, {
+      duration: 3000,
+      onExpire: resetClipClearConfirmation,
+    });
+    return;
+  }
+  resetClipClearConfirmation();
+  clearClipHistory();
+}
+
+if (clipClearBtn) {
+  clipClearBtn.addEventListener('keydown', (event) => {
+    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+    }
+  });
 }
 
 function clearClipHistory() {
+  const removedCount = clipHistory.length;
   const imagePaths = clipHistory
     .filter((e) => e.type === 'image' && e.imagePath)
     .map((e) => e.imagePath);
@@ -1376,20 +2388,31 @@ function clearClipHistory() {
   }
   renderClipList();
   renderClipFavs();
+  showStatusToast(`已清空 ${removedCount} 条剪贴记录`);
 }
 
-function copyClipEntry(id) {
+async function copyClipEntry(id) {
   const entry = clipHistory.find((e) => e.id === id);
-  if (!entry) return;
-  if (window.notchAPI && typeof window.notchAPI.writeClipboard === 'function') {
-    window.notchAPI.writeClipboard(entry).catch(() => {});
+  if (!entry) return false;
+  if (!window.notchAPI || typeof window.notchAPI.writeClipboard !== 'function') return false;
+  try {
+    const copied = await window.notchAPI.writeClipboard(entry);
+    if (!copied) {
+      showStatusToast('复制失败，请重试');
+      return false;
+    }
+  } catch (e) {
+    showStatusToast('复制失败，请重试');
+    return false;
   }
+  showStatusToast(entry.type === 'image' ? '图片已复制' : '已复制到剪贴板');
   // 视觉反馈：800ms 后移除 copied 类
   const itemEl = clipListEl && clipListEl.querySelector(`.clip-item[data-id="${CSS.escape(id)}"]`);
   if (itemEl) {
     itemEl.classList.add('copied');
     setTimeout(() => itemEl.classList.remove('copied'), 800);
   }
+  return true;
 }
 
 // ---- IPC 推送监听 ----

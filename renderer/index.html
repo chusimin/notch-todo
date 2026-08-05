@@ -2,36 +2,39 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>刘海待办</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div id="app" class="collapsed">
-      <div id="notch" class="notch">
+      <div
+        id="notch"
+        class="notch"
+        role="button"
+        tabindex="0"
+        aria-label="展开刘海待办"
+        aria-expanded="false"
+        aria-controls="panel"
+      >
         <div class="notch-dot"></div>
       </div>
 
-      <div id="panel" class="panel">
+      <div id="panel" class="panel" aria-hidden="true" inert>
         <header class="topbar">
-          <div class="brand">
-            <div class="brand-mark squircle" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 7.5 9.5 4 19 7.5v6L9.5 17 5 13.5z" />
-              </svg>
-            </div>
-            <span class="brand-label">NotchTodo</span>
-          </div>
-
           <div class="tabs" id="tabs" role="tablist">
-            <button class="tab" type="button" data-tab="home" role="tab">
+            <button class="tab" id="tab-button-home" type="button" data-tab="home" role="tab" aria-controls="tab-home" aria-selected="false" tabindex="-1">
               <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 11.5 12 4l8 7.5" />
                 <path d="M6 10v9h12v-9" />
               </svg>
               <span class="tab-label">首页</span>
             </button>
-            <button class="tab" type="button" data-tab="todo" role="tab">
+            <button class="tab" id="tab-button-todo" type="button" data-tab="todo" role="tab" aria-controls="tab-todo" aria-selected="false" tabindex="-1">
               <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 7h10" />
                 <path d="M4 12h10" />
@@ -40,14 +43,14 @@
               </svg>
               <span class="tab-label">待办</span>
             </button>
-            <button class="tab" type="button" data-tab="clip" role="tab">
+            <button class="tab" id="tab-button-clip" type="button" data-tab="clip" role="tab" aria-controls="tab-clip" aria-selected="false" tabindex="-1">
               <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
                 <rect x="9" y="3" width="6" height="4" rx="1" />
               </svg>
               <span class="tab-label">剪贴板</span>
             </button>
-            <button class="tab" type="button" data-tab="apps" role="tab">
+            <button class="tab" id="tab-button-apps" type="button" data-tab="apps" role="tab" aria-controls="tab-apps" aria-selected="false" tabindex="-1">
               <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
                 <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
@@ -70,6 +73,7 @@
                 id="apps-search"
                 class="apps-search"
                 placeholder="搜索应用…"
+                aria-label="搜索应用"
                 autocomplete="off"
                 spellcheck="false"
               />
@@ -86,7 +90,7 @@
         </header>
 
         <div class="panels" id="panels">
-          <section id="tab-home" class="tab-panel" role="tabpanel">
+          <section id="tab-home" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-home" aria-hidden="true" inert>
             <div class="home-bento">
               <!-- 时钟·日期 -->
               <section class="tile home-clock" id="home-clock">
@@ -95,6 +99,27 @@
                   <span class="clock-hm"><span id="clock-h">--</span><span class="clock-colon">:</span><span class="clock-m" id="clock-m">--</span></span>
                   <span class="clock-ss" id="clock-ss">00</span>
                 </div>
+              </section>
+
+              <!-- 镜子（与时钟共用左列） -->
+              <section class="tile home-mirror">
+                <button class="mirror-stage" id="mirror-stage" type="button" aria-label="开启镜子" aria-pressed="false">
+                  <video
+                    id="mirror-video"
+                    class="mirror-video"
+                    muted
+                    autoplay
+                    playsinline
+                  ></video>
+                  <span class="mirror-placeholder" id="mirror-placeholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2L8 5h8l1.5 2h2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
+                      <circle cx="12" cy="13" r="3.2" />
+                    </svg>
+                    <span class="mirror-label" id="mirror-label">镜子</span>
+                    <span class="mirror-hint" id="mirror-hint">点按开启</span>
+                  </span>
+                </button>
               </section>
 
               <!-- 快捷应用（与应用 Tab 收藏同源） -->
@@ -113,46 +138,74 @@
 
               <!-- 速记 -->
               <section class="tile home-note">
-                <textarea
-                  id="home-note"
-                  class="note-input"
-                  placeholder="随手记点什么…"
-                  spellcheck="false"
-                ></textarea>
+                <div class="note-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+                  <div class="note-format-actions" id="note-format-actions">
+                    <button class="note-tool" type="button" data-note-format="heading" aria-label="标题" title="标题">
+                      <span class="note-tool-glyph" aria-hidden="true">H</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="bold" aria-label="加粗" title="加粗（⌘B）">
+                      <span class="note-tool-glyph note-tool-bold" aria-hidden="true">B</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="italic" aria-label="斜体" title="斜体（⌘I）">
+                      <span class="note-tool-glyph note-tool-italic" aria-hidden="true">I</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="bullet" aria-label="项目符号" title="项目符号">
+                      <span class="note-tool-glyph note-tool-bullet" aria-hidden="true">•</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="ordered" aria-label="编号列表" title="编号列表">
+                      <span class="note-tool-glyph note-tool-small" aria-hidden="true">1.</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="task" aria-label="待办列表" title="待办列表">
+                      <span class="note-tool-glyph note-tool-small" aria-hidden="true">✓</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="quote" aria-label="引用" title="引用">
+                      <span class="note-tool-glyph note-tool-quote" aria-hidden="true">”</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="code" aria-label="行内代码" title="行内代码">
+                      <span class="note-tool-glyph note-tool-code" aria-hidden="true">&lt;&gt;</span>
+                    </button>
+                    <button class="note-tool" type="button" data-note-format="link" aria-label="链接" title="链接">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+                        <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="note-mode-switch" role="group" aria-label="速记显示方式">
+                    <button class="note-mode active" id="note-edit-btn" type="button" data-note-mode="edit" aria-pressed="true">编辑</button>
+                    <button class="note-mode" id="note-preview-btn" type="button" data-note-mode="preview" aria-pressed="false">预览</button>
+                  </div>
+                </div>
+                <div class="note-body">
+                  <textarea
+                    id="home-note"
+                    class="note-input"
+                    placeholder="用 Markdown 随手记点什么…"
+                    aria-label="Markdown 速记内容"
+                    spellcheck="false"
+                  ></textarea>
+                  <article
+                    id="home-note-preview"
+                    class="note-preview"
+                    aria-label="Markdown 预览"
+                    tabindex="0"
+                    hidden
+                  ></article>
+                </div>
               </section>
 
-              <!-- 镜子 -->
-              <section class="tile home-mirror">
-                <button class="mirror-stage" id="mirror-stage" type="button" aria-label="开启镜子">
-                  <video
-                    id="mirror-video"
-                    class="mirror-video"
-                    muted
-                    autoplay
-                    playsinline
-                  ></video>
-                  <span class="mirror-placeholder" id="mirror-placeholder">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2L8 5h8l1.5 2h2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
-                      <circle cx="12" cy="13" r="3.2" />
-                    </svg>
-                  </span>
-                </button>
-                <span class="mirror-label" id="mirror-label">镜子</span>
-                <span class="mirror-hint" id="mirror-hint">点按开启</span>
-              </section>
-
-              <!-- 收藏剪贴（第二行整行） -->
+              <!-- 收藏剪贴 -->
               <section class="tile home-clipfav">
                 <div class="tile-head">
                   <span class="tile-label">收藏剪贴</span>
                 </div>
                 <div class="clipfav-list" id="clipfav-list"></div>
               </section>
+
             </div>
           </section>
 
-          <section id="tab-todo" class="tab-panel" role="tabpanel">
+          <section id="tab-todo" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-todo" aria-hidden="true" inert>
             <div class="sections">
               <section class="quadrant tile" data-priority="P0">
                 <div class="quadrant-header">
@@ -165,7 +218,8 @@
                 <div class="add-row">
                   <input
                     type="text"
-                    placeholder="添加..."
+                    placeholder="添加 P0 待办，回车保存…"
+                    aria-label="添加 P0 紧急且重要待办"
                     data-priority="P0"
                     maxlength="80"
                   />
@@ -183,7 +237,8 @@
                 <div class="add-row">
                   <input
                     type="text"
-                    placeholder="添加..."
+                    placeholder="添加 P1 待办，回车保存…"
+                    aria-label="添加 P1 重要不紧急待办"
                     data-priority="P1"
                     maxlength="80"
                   />
@@ -201,7 +256,8 @@
                 <div class="add-row">
                   <input
                     type="text"
-                    placeholder="添加..."
+                    placeholder="添加 P2 待办，回车保存…"
+                    aria-label="添加 P2 紧急不重要待办"
                     data-priority="P2"
                     maxlength="80"
                   />
@@ -219,7 +275,8 @@
                 <div class="add-row">
                   <input
                     type="text"
-                    placeholder="添加..."
+                    placeholder="添加 P3 待办，回车保存…"
+                    aria-label="添加 P3 日常待办"
                     data-priority="P3"
                     maxlength="80"
                   />
@@ -228,7 +285,7 @@
             </div>
           </section>
 
-          <section id="tab-clip" class="tab-panel" role="tabpanel">
+          <section id="tab-clip" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-clip" aria-hidden="true" inert>
             <div class="clip-panel">
               <div class="clip-toolbar" id="clip-toolbar">
                 <button class="clip-filter active" data-filter="all" type="button">全部</button>
@@ -249,7 +306,7 @@
             </div>
           </section>
 
-          <section id="tab-apps" class="tab-panel" role="tabpanel">
+          <section id="tab-apps" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-apps" aria-hidden="true" inert>
             <div class="apps-scroll" id="apps-scroll">
               <div class="apps-loading" id="apps-loading">正在读取应用…</div>
               <section class="apps-fav-section" id="apps-fav-section" hidden>
@@ -263,6 +320,10 @@
               <div class="apps-empty" id="apps-empty" hidden>没有匹配的应用</div>
             </div>
           </section>
+        </div>
+        <div class="status-toast" id="status-toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" hidden>
+          <span id="status-toast-message"></span>
+          <button id="status-toast-action" type="button" hidden>撤销</button>
         </div>
       </div>
     </div>
