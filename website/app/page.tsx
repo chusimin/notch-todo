@@ -1,58 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type KeyboardEvent } from "react";
+import ProductDemo from "./ProductDemo";
+import SideRays from "./SideRays";
 
 const DOWNLOAD_URL = "https://github.com/chusimin/notch-todo/releases/latest";
 const GITHUB_URL = "https://github.com/chusimin/notch-todo";
-
-const productTabs = [
-  { id: "home", label: "首页", mark: "⌂" },
-  { id: "todo", label: "待办", mark: "✓" },
-  { id: "clip", label: "剪贴板", mark: "▣" },
-  { id: "apps", label: "应用", mark: "⌘" },
-] as const;
-
-type ProductTab = (typeof productTabs)[number]["id"];
-
-const todoColumns = [
-  {
-    level: "P0",
-    label: "紧急且重要",
-    className: "priority-p0",
-    tasks: [
-      { text: "确认发布版本", done: true },
-      { text: "检查安装包", done: false },
-    ],
-  },
-  {
-    level: "P1",
-    label: "重要不紧急",
-    className: "priority-p1",
-    tasks: [
-      { text: "完善新手说明", done: false },
-      { text: "整理体验反馈", done: false },
-    ],
-  },
-  {
-    level: "P2",
-    label: "紧急不重要",
-    className: "priority-p2",
-    tasks: [
-      { text: "回复测试消息", done: false },
-      { text: "核对演示内容", done: true },
-    ],
-  },
-  {
-    level: "P3",
-    label: "日常",
-    className: "priority-p3",
-    tasks: [
-      { text: "清理演示截图", done: false },
-      { text: "归档旧文档", done: false },
-    ],
-  },
-] as const;
 
 const featureCards = [
   {
@@ -126,195 +79,7 @@ const faqs = [
   },
 ] as const;
 
-function HomeDemo() {
-  return (
-    <div className="demo-home-grid">
-      <article className="demo-tile demo-clock-card">
-        <span className="demo-tile-label">现在</span>
-        <strong>09:41</strong>
-        <p>8 月 6 日 · 星期四</p>
-      </article>
-
-      <article className="demo-tile demo-note-card">
-        <div className="demo-tile-head">
-          <span className="demo-tile-label">Markdown 速记</span>
-          <span className="demo-mode-chip">预览</span>
-        </div>
-        <h3>今天</h3>
-        <ul className="demo-note-list">
-          <li className="is-done"><span>✓</span>整理首页文案</li>
-          <li><span />检查下载流程</li>
-          <li><span />回复体验反馈</li>
-        </ul>
-        <blockquote>先把最重要的一件事做完。</blockquote>
-      </article>
-
-      <article className="demo-tile demo-quick-card">
-        <span className="demo-tile-label">快捷应用</span>
-        <div className="quick-apps" aria-label="演示应用">
-          {[
-            ["S", "Safari"],
-            [">_", "终端"],
-            ["N", "备忘录"],
-            ["F", "Figma"],
-          ].map(([glyph, name]) => (
-            <div className="quick-app" key={name}>
-              <span>{glyph}</span>
-              <small>{name}</small>
-            </div>
-          ))}
-        </div>
-      </article>
-
-      <article className="demo-tile demo-mirror-card">
-        <div className="mirror-lens" aria-hidden="true">
-          <span />
-        </div>
-        <div>
-          <span className="demo-tile-label">镜子</span>
-          <p>默认关闭 · 点按开启</p>
-        </div>
-      </article>
-
-      <article className="demo-tile demo-favorite-card">
-        <div className="demo-tile-head">
-          <span className="demo-tile-label">收藏剪贴</span>
-          <span className="demo-count">3</span>
-        </div>
-        <div className="favorite-lines">
-          <p>今天先完成最重要的一件事。</p>
-          <p>github.com/chusimin/notch-todo</p>
-          <p>npm run build</p>
-        </div>
-      </article>
-    </div>
-  );
-}
-
-function TodoDemo() {
-  return (
-    <div className="demo-todo-grid">
-      {todoColumns.map((column) => (
-        <article className={`todo-column ${column.className}`} key={column.level}>
-          <div className="todo-column-head">
-            <div>
-              <span className="priority-dot" />
-              <strong>{column.level}</strong>
-              <small>{column.label}</small>
-            </div>
-            <span>{column.tasks.filter((task) => !task.done).length}</span>
-          </div>
-          <div className="todo-items">
-            {column.tasks.map((task) => (
-              <div className={`todo-item ${task.done ? "is-done" : ""}`} key={task.text}>
-                <span className="todo-check">{task.done ? "✓" : ""}</span>
-                <p>{task.text}</p>
-              </div>
-            ))}
-          </div>
-          <div className="todo-input">添加 {column.level} 待办…</div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function ClipboardDemo() {
-  return (
-    <div className="clipboard-demo">
-      <div className="clip-toolbar" aria-label="剪贴板筛选演示">
-        <span className="is-active">全部</span>
-        <span>文字</span>
-        <span>图片</span>
-        <span>收藏</span>
-        <span className="clip-shortcut">⌘ ⇧ V</span>
-      </div>
-      <div className="clip-grid">
-        <article className="clip-card">
-          <p>今天先完成最重要的一件事。</p>
-          <div><span>☆</span><time>刚刚</time></div>
-        </article>
-        <article className="clip-card clip-link">
-          <p>github.com/chusimin/notch-todo</p>
-          <div><span>★</span><time>3 分钟前</time></div>
-        </article>
-        <article className="clip-card clip-image-card">
-          <div className="clip-image" aria-label="脱敏的渐变图片演示"><span /></div>
-          <div><span>☆</span><time>12 分钟前</time></div>
-        </article>
-        <article className="clip-card clip-code">
-          <p>npm run build</p>
-          <div><span>☆</span><time>8/6</time></div>
-        </article>
-      </div>
-    </div>
-  );
-}
-
-function AppsDemo() {
-  const allApps = [
-    ["S", "Safari"],
-    [">_", "终端"],
-    ["N", "备忘录"],
-    ["F", "Figma"],
-    ["C", "日历"],
-    ["M", "邮件"],
-    ["P", "预览"],
-    ["A", "活动监视器"],
-  ];
-
-  return (
-    <div className="apps-demo">
-      <aside className="apps-favorites" aria-label="收藏应用演示">
-        <div className="apps-section-label"><span className="status-light" />常用</div>
-        {allApps.slice(0, 4).map(([glyph, name]) => (
-          <div className="favorite-app" key={name}>
-            <span>{glyph}</span>
-            <p>{name}</p>
-          </div>
-        ))}
-      </aside>
-      <div className="apps-library">
-        <div className="apps-search"><span>⌕</span>搜索应用…<kbd>⌘ K</kbd></div>
-        <div className="apps-section-label">全部应用</div>
-        <div className="apps-grid">
-          {allApps.map(([glyph, name], index) => (
-            <div className="app-cell" key={name}>
-              <span>{glyph}</span>
-              <p>{name}</p>
-              {index < 4 && <small>★</small>}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProductPanel({ activeTab }: { activeTab: ProductTab }) {
-  if (activeTab === "todo") return <TodoDemo />;
-  if (activeTab === "clip") return <ClipboardDemo />;
-  if (activeTab === "apps") return <AppsDemo />;
-  return <HomeDemo />;
-}
-
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<ProductTab>("home");
-
-  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    let nextIndex = index;
-    if (event.key === "ArrowRight") nextIndex = (index + 1) % productTabs.length;
-    else if (event.key === "ArrowLeft") nextIndex = (index - 1 + productTabs.length) % productTabs.length;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = productTabs.length - 1;
-    else return;
-
-    event.preventDefault();
-    const nextTab = productTabs[nextIndex];
-    setActiveTab(nextTab.id);
-    document.getElementById(`product-tab-${nextTab.id}`)?.focus();
-  }
-
   return (
     <>
       <a className="skip-link" href="#main-content">跳到主要内容</a>
@@ -336,8 +101,24 @@ export default function Home() {
       </header>
 
       <main id="main-content">
-        <section className="hero" id="top">
-          <div className="hero-copy">
+        <section className="hero-section" id="top">
+          <div className="hero-rays">
+            <SideRays
+              speed={0.78}
+              rayColor1="#d8ffdf"
+              rayColor2="#b9cbff"
+              intensity={2.05}
+              spread={1.55}
+              origin="top-right"
+              tilt={-5}
+              saturation={0.92}
+              blend={0.62}
+              falloff={1.72}
+              opacity={0.7}
+            />
+          </div>
+          <div className="hero">
+            <div className="hero-copy">
             <div className="eyebrow"><span className="status-light" />专为 macOS 刘海打造</div>
             <h1>把 Mac 刘海，<span>变成随手工作台。</span></h1>
             <p className="hero-lede">
@@ -358,26 +139,27 @@ export default function Home() {
               <span>免费开源</span>
             </div>
             <p className="install-note">当前安装包未公证，首次打开可能需要在 Finder 中右键确认。</p>
-          </div>
+            </div>
 
-          <div className="hero-object" aria-label="NotchTodo 应用图标展示">
-            <div className="hero-orbit hero-orbit-one" />
-            <div className="hero-orbit hero-orbit-two" />
-            <div className="logo-plinth">
-              <Image
-                src="/notchtodo-logo.png"
-                alt="NotchTodo 银色应用图标"
-                width={620}
-                height={620}
-                priority
-                sizes="(max-width: 820px) 78vw, 42vw"
-              />
+            <div className="hero-object" aria-label="NotchTodo 应用图标展示">
+              <div className="hero-orbit hero-orbit-one" />
+              <div className="hero-orbit hero-orbit-two" />
+              <div className="logo-plinth">
+                <Image
+                  src="/notchtodo-logo.png"
+                  alt="NotchTodo 银色应用图标"
+                  width={620}
+                  height={620}
+                  priority
+                  sizes="(max-width: 820px) 78vw, 42vw"
+                />
+              </div>
+              <div className="hero-status-card">
+                <span className="status-light" />
+                <div><strong>随时可用</strong><small>常驻屏幕顶部</small></div>
+              </div>
+              <div className="hero-key-card"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd><span>召唤剪贴板</span></div>
             </div>
-            <div className="hero-status-card">
-              <span className="status-light" />
-              <div><strong>随时可用</strong><small>常驻屏幕顶部</small></div>
-            </div>
-            <div className="hero-key-card"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd><span>召唤剪贴板</span></div>
           </div>
         </section>
 
@@ -387,60 +169,11 @@ export default function Home() {
               <span className="section-index">01 / 实际体验</span>
               <h2>需要时出现，<br />其余时间保持安静。</h2>
             </div>
-            <p>四个页面共用同一块轻巧面板。试着切换 Tab，看看零碎的高频动作如何被收进刘海下面。</p>
+            <p>演示会自己在四个页面间走一圈。把鼠标移进屏幕，或直接点击任一页面，自动操作就会暂时让位给你。</p>
           </div>
 
-          <div className="demo-stage">
-            <div className="demo-hardware-line" aria-hidden="true" />
-            <div className="product-window">
-              <div className="product-notch" aria-hidden="true"><span /></div>
-              <div className="product-toolbar">
-                <div className="product-brand">
-                  <Image src="/favicon.png" alt="" width={28} height={28} />
-                  <span>NotchTodo</span>
-                </div>
-                <div className="product-tabs" role="tablist" aria-label="切换产品演示页面">
-                  {productTabs.map((tab, index) => (
-                    <button
-                      className={activeTab === tab.id ? "is-active" : ""}
-                      id={`product-tab-${tab.id}`}
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === tab.id}
-                      aria-controls={`product-panel-${tab.id}`}
-                      tabIndex={activeTab === tab.id ? 0 : -1}
-                      onClick={() => setActiveTab(tab.id)}
-                      onKeyDown={(event) => handleTabKeyDown(event, index)}
-                    >
-                      <span aria-hidden="true">{tab.mark}</span>{tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="product-local"><span className="status-light" />仅本机</div>
-              </div>
-              <div
-                className="product-panel"
-                id={`product-panel-${activeTab}`}
-                role="tabpanel"
-                aria-labelledby={`product-tab-${activeTab}`}
-                tabIndex={0}
-              >
-                <ProductPanel activeTab={activeTab} />
-              </div>
-            </div>
-
-            <aside className="task-notification" aria-label="Codex 完成提醒演示">
-              <Image src="/favicon.png" alt="" width={40} height={40} />
-              <div>
-                <p><span className="status-light" />Codex <time>刚刚</time></p>
-                <strong>官网首屏文案已经整理完成</strong>
-                <small>NotchTodo 官网 · 需本机 Hook</small>
-              </div>
-              <span className="notification-close" aria-hidden="true">×</span>
-            </aside>
-          </div>
-          <p className="demo-caption">演示内容均为脱敏示例。AI 完成提醒需配置本机 Hook；当前不保存完成历史，也不支持跳转对话。</p>
+          <div className="demo-stage"><ProductDemo /></div>
+          <p className="demo-caption">界面按桌面端实际布局等比模拟；演示内容均为脱敏示例。</p>
         </section>
 
         <section className="features-section section-shell" id="features">
