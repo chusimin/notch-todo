@@ -15,7 +15,9 @@
 
 - 启动开发：`npm start`
 - 安装依赖：`npm install`
-- 打包发布：`npm run build`（后续接入 electron-builder）
+- 打包发布：`npm run build`（已接入 electron-builder；仅在用户明确确认后执行）
+- 官网开发：`cd website && npm install && npm run dev`
+- 官网检查：`cd website && npm run lint && npm run build`
 
 ## 目录结构
 
@@ -31,7 +33,8 @@
     notification.html/css/js  # 独立任务完成提醒窗口
     assets/app-logo-128.png    # 提醒窗口小尺寸 Logo
   docs/
-    DASHBOARD-DESIGN.md  # 仪表盘设计规格（渲染层唯一取值依据）
+    DASHBOARD-DESIGN.md  # 仪表盘设计演进与当前产品规格
+  website/               # React 19 + Vinext 官网源码
 ```
 
 ## 关键设计参数
@@ -42,15 +45,15 @@
 - 窗口变形（防卡顿铁律）：**主进程 setBounds 一律瞬时、禁用系统动画**；展开先瞬时放大窗口再播面板入场，收起先播退场再瞬时缩窗。切 Tab 只替换内容，不改变原生窗口尺寸
 - 多屏锚定：模式切换 / Tab 变形 / 失焦收起一律锚定**窗口当前所在屏**（getDisplayMatching），绝不跟随光标——否则失焦瞬间刘海会瞬移到光标所在的另一块屏；仅启动 / 托盘重新居中 / 显示跟随光标屏
 - 展开/收起交互：折叠态点折叠条展开（无唇边，靠 screen-saver 级窗口穿透菜单栏拦截）；收起 = 再点顶部刘海位正下方的顶栏（整条顶栏除 Tab/按钮/输入外都是收起热区，含品牌区）/ 收起钮 / 点面板外任意处（窗口失焦）自动收起 / Esc（主进程 before-input-event 转发兜底，Escape 不会原生到达页面）
-- 四 Tab 结构：首页两行 bento（时钟 / 快捷应用 / Markdown 速记编辑预览 / 镜子 / 收藏剪贴）+ 待办 P0–P3 四列 + 剪贴板自适应等高卡片 + 应用启动坞。应用页左侧收藏区固定，只有右侧全部应用列表滚动
+- 四 Tab 结构：首页两行 bento（时钟 / 快捷应用 / Markdown 速记编辑预览 / 镜子 / 收藏剪贴）+ 待办 P0–P3 2 × 2 矩阵 + 剪贴板固定高度卡片 + 应用启动坞。应用页左侧收藏区固定，只有右侧全部应用列表滚动
 - 剪贴板类型样式：文字 / 链接 / 图片只用浅描边区分，禁止左侧色条与冗余类型标签；长文本按卡片高度截断并显示省略效果
 - 动效对齐 Linear：日常微交互 100–180ms，展开/收起保留从顶部生长与回到顶点的连续手势；窗口本身仍零动画，`prefers-reduced-motion` 必须降级
 - 任务完成提醒：独立 `400 × 96` 无焦点窗口，队列上限 5，悬停暂停、点击关闭；HTTP 入口只监听 `127.0.0.1:43821`，Codex Stop Hook 使用 `/notify/codex`
 - 剪贴板：主进程 500ms 轮询 clipboard（Electron 无 changeCount，靠文本本身/图片「宽x高:PNG字节长度」指纹去重），文字里正则 `/^https?:/i` 判链接；跳过 org.nspasteboard.ConcealedType（密码管理器敏感内容）；图片写盘到 userData/clipboard-images/（IPC 统一走 isInsideClipDir 路径白名单，尾分隔符防兄弟目录逃逸），元数据存 LocalStorage，图片 dataURL 仅内存 Map 缓存（绝不进 LocalStorage，否则爆配额）；FIFO 上限 100（notch-clip-history 最新在头，超出淘汰最老并连带删图）；收藏 = notch-clip-favorites（id 数组，与 notch-app-favorites 同构）；点条目 clipboard:write 写回系统剪贴板供用户 Cmd+V；全局快捷键 Cmd+Shift+V 经 app:open-clip 驱动展开并切到本 Tab（主进程已 applyMode，渲染层只同步 expanded 类不回发 IPC）
-- 配色：纯单色玻璃 —— 纯黑底 #000000、白色分级文本，强调色仅 P0–P3 色点（P0 红 / P1 橙 / P2 黄 / P3 绿）与 app 原生图标
-- 圆角：折叠条下方两角 10px（--r-notch）、展开面板下方两角 24px（--r-panel），两者上沿都贴顶不圆角
-- 动效 Motion System v2：4 条曲线（--ease 兼容 / --ease-out expo 入退场 / --ease-spring 回弹落定 / --ease-soft 尺寸变形防过冲）；展开=面板从刘海垂下 scale0.96→1 落定（380ms，transform-origin top）、收起=回缩淡出 180ms、内容级联 riseIn（块依次上浮，backwards 填充免与 hover 冲突）、Tab 胶囊 spring 落定、控件 :active 缩小 + 图标 dock 式提起 + 勾选 checkPop + 新增 itemIn（后两者 JS 一次性 class）；窗口本身仍零动画（防卡顿铁律）；prefers-reduced-motion 全局降级
-- 提交方式：输入框内**连按两次回车**确认新增 —— 第一次回车进入待确认（armed）并浮出「再按一次回车提交」提示，第二次才提交；中途继续输入或失焦会重置，输入法组合态（isComposing）忽略。意在防误触
+- 配色：纯黑底 #000000、白色分级文本，强调色仅 P0–P3 色点（P0 红 / P1 橙 / P2 绿 / P3 蓝）、剪贴板浅类型描边与 app 原生图标
+- 圆角：折叠条下方两角 10px（--r-notch）、展开面板下方两角 16px（--r-panel），两者上沿都贴顶不圆角
+- 动效 Motion System v2：窗口边界始终瞬时变更；展开、收起、内容级联、Tab 胶囊与控件反馈由渲染层完成；`prefers-reduced-motion` 全局降级
+- 待办提交：输入框内按一次回车新增；输入法组合态（isComposing / keyCode 229）不提交
 
 ## 代码规范
 

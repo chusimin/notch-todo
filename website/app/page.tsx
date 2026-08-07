@@ -293,7 +293,7 @@ export default function Home() {
           <div>
             <a href={GITHUB_URL}>GitHub</a>
             <a href={`${GITHUB_URL}/issues`}>反馈问题</a>
-            <a href={`${GITHUB_URL}/blob/main/LICENSE`}>MIT License</a>
+            <a href={`${GITHUB_URL}#license`}>许可说明</a>
           </div>
         </div>
       </footer>
