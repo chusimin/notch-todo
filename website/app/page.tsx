@@ -104,7 +104,7 @@ export default function Home() {
         <section className="hero-section" id="top">
           <div className="hero-rays">
             <SideRays
-              speed={0.78}
+              speed={1.15}
               rayColor1="#d8ffdf"
               rayColor2="#b9cbff"
               intensity={2.05}
@@ -114,13 +114,18 @@ export default function Home() {
               saturation={0.92}
               blend={0.62}
               falloff={1.72}
-              opacity={0.7}
+              opacity={0.82}
             />
           </div>
           <div className="hero">
             <div className="hero-copy">
             <div className="eyebrow"><span className="status-light" />专为 macOS 刘海打造</div>
-            <h1>把 Mac 刘海，<span>变成随手工作台。</span></h1>
+            <h1>
+              <span className="hero-title-line">把 Mac 刘海，</span>
+              <span className="hero-title-line hero-title-secondary">
+                变成随手<br className="hero-title-break" />工作台。
+              </span>
+            </h1>
             <p className="hero-lede">
               待办、剪贴板、Markdown 速记和常用应用，都收在屏幕顶端。
               点一下展开，用完即收起；核心数据只留在这台 Mac。

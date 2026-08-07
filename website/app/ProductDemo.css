@@ -30,6 +30,7 @@
 .pd-root button {
   color: inherit;
   font: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .pd-root button:focus-visible {
@@ -259,11 +260,16 @@
   color: var(--pd-text-1);
 }
 
-.pd-tab-list button > span {
-  width: 1.05em;
+.pd-tab-icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
   color: inherit;
-  font-size: 1.15em;
-  line-height: 1;
 }
 
 .pd-tab-indicator {
@@ -298,6 +304,26 @@
 .pd-app-search span {
   color: var(--pd-text-3);
   font-size: 1.25em;
+}
+
+.pd-app-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--pd-text-2);
+  font: inherit;
+}
+
+.pd-app-search input::placeholder {
+  color: var(--pd-text-4);
+}
+
+.pd-app-search:focus-within {
+  border-color: rgba(255, 255, 255, 0.13);
+  background: var(--pd-surface-2);
 }
 
 .pd-collapse {
@@ -415,6 +441,9 @@
 .pd-home-mirror {
   grid-area: mirror;
   padding: 0;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
   text-align: center;
 }
 
@@ -431,6 +460,50 @@
     radial-gradient(ellipse at 50% 38%, rgba(255, 255, 255, 0.07), transparent 42%),
     linear-gradient(145deg, #181818, #0a0a0a);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+  transition: background 220ms ease, filter 180ms ease;
+}
+
+.pd-home-mirror:hover .pd-mirror-stage {
+  filter: brightness(1.07);
+}
+
+.pd-mirror-stage.is-live {
+  background:
+    radial-gradient(circle at 50% 23%, rgba(253, 220, 198, 0.5), transparent 14%),
+    radial-gradient(ellipse at 48% 84%, rgba(78, 94, 126, 0.92), transparent 43%),
+    linear-gradient(145deg, #493f45, #12171e 58%, #08090b);
+}
+
+.pd-mirror-person {
+  position: relative;
+  display: block;
+  width: clamp(31px, 4.2cqw, 56px);
+  height: clamp(38px, 5.2cqw, 69px);
+}
+
+.pd-mirror-person i,
+.pd-mirror-person b {
+  position: absolute;
+  left: 50%;
+  display: block;
+  background: linear-gradient(145deg, #d0b29e, #8d746b);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.16);
+  transform: translateX(-50%);
+}
+
+.pd-mirror-person i {
+  top: 2%;
+  width: 42%;
+  aspect-ratio: 0.82;
+  border-radius: 48% 48% 44% 44%;
+}
+
+.pd-mirror-person b {
+  bottom: 0;
+  width: 88%;
+  height: 56%;
+  border-radius: 50% 50% 18% 18%;
+  background: linear-gradient(145deg, #58647c, #242b39);
 }
 
 .pd-camera-glyph {
@@ -522,6 +595,11 @@
   align-items: center;
   min-width: 0;
   gap: 0.42cqw;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .pd-app-icon {
@@ -878,12 +956,23 @@
 .pd-task {
   display: flex;
   align-items: center;
+  width: 100%;
   min-height: clamp(22px, 2.55cqw, 34px);
   gap: 0.65cqw;
   padding: 0.38cqw 0.3cqw;
+  border: 0;
   border-radius: 0.55cqw;
+  background: transparent;
   color: var(--pd-text-2);
+  cursor: pointer;
   font-size: clamp(7px, 0.8cqw, 10.5px);
+  text-align: left;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.pd-task:hover {
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--pd-text-1);
 }
 
 .pd-task i {
@@ -940,7 +1029,7 @@
   gap: 0.35cqw;
 }
 
-.pd-clip-toolbar > span,
+.pd-clip-toolbar > button,
 .pd-clip-toolbar .pd-clip-clear {
   min-height: clamp(20px, 2.15cqw, 28px);
   padding: 0.3cqw 0.78cqw;
@@ -948,10 +1037,16 @@
   border-radius: 999px;
   background: var(--pd-surface-1);
   color: var(--pd-text-3);
+  cursor: pointer;
   font-size: clamp(6px, 0.72cqw, 9.5px);
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
 }
 
-.pd-clip-toolbar > span.is-active {
+.pd-clip-toolbar > button:hover {
+  color: var(--pd-text-2);
+}
+
+.pd-clip-toolbar > button.is-active {
   border-color: var(--pd-hairline);
   background: var(--pd-surface-2);
   color: var(--pd-text-1);
@@ -986,6 +1081,7 @@
 .pd-clip-grid::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(255, 255, 255, 0.12); }
 
 .pd-clip-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -994,6 +1090,27 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: clamp(8px, 1.2cqw, 16px);
   background: var(--pd-surface-1);
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.pd-clip-card.is-copied {
+  border-color: rgba(48, 217, 120, 0.36);
+  transform: translateY(-1px);
+}
+
+.pd-clip-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: copy;
+}
+
+.pd-clip-hit:focus-visible {
+  outline-offset: -2px;
 }
 
 .pd-clip-url {
@@ -1039,8 +1156,10 @@
 }
 
 .pd-clip-card footer span {
+  min-width: 3em;
   color: var(--pd-text-1);
   font-size: 0.85em;
+  text-align: right;
 }
 
 .pd-clip-art {
@@ -1098,12 +1217,28 @@
 }
 
 .pd-app-library {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   padding: 0.3cqw 0.45cqw 0;
+}
+
+.pd-app-launch-toast {
+  position: absolute;
+  right: 0.7cqw;
+  bottom: 0.65cqw;
+  z-index: 4;
+  padding: 0.42cqw 0.65cqw;
+  border: 1px solid rgba(48, 217, 120, 0.2);
+  border-radius: 999px;
+  background: rgba(8, 18, 12, 0.9);
+  color: #8ee8ad;
+  box-shadow: 0 0.5cqw 1.4cqw rgba(0, 0, 0, 0.36);
+  font-size: clamp(6px, 0.68cqw, 9px);
+  pointer-events: none;
 }
 
 .pd-all-app-grid {
@@ -1132,6 +1267,14 @@
   border-radius: 0.85cqw;
 }
 
+.pd-app-empty {
+  grid-column: 1 / -1;
+  margin: 3cqw 0 0;
+  color: var(--pd-text-3);
+  font-size: clamp(7px, 0.82cqw, 11px);
+  text-align: center;
+}
+
 .pd-app-cell i {
   position: absolute;
   top: 0;
@@ -1155,6 +1298,13 @@
 .pd-app-cell:hover .pd-app-icon {
   filter: brightness(1.06);
   transform: translateY(-4px) scale(1.08);
+}
+
+.pd-quick-app.is-launched .pd-app-icon,
+.pd-app-cell.is-launched .pd-app-icon {
+  filter: brightness(1.12);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.22), 0 0 0 2px rgba(255, 255, 255, 0.18), 0 0.65cqw 1.4cqw rgba(0, 0, 0, 0.34);
 }
 
 .pd-desktop-dock {
@@ -1190,23 +1340,33 @@
 
 .pd-auto-cursor {
   position: absolute;
-  top: var(--pd-cursor-y, 8%);
-  left: var(--pd-cursor-x, 10%);
+  top: 0;
+  left: 0;
   z-index: 30;
   width: clamp(13px, 1.55cqw, 21px);
   height: clamp(18px, 2.1cqw, 28px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(
+    calc(var(--pd-cursor-x, 0px) - 20%),
+    calc(var(--pd-cursor-y, 0px) - 16%),
+    0
+  );
+  transition:
+    transform 820ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+.pd-auto-cursor > span {
+  position: absolute;
+  inset: 0;
+  display: block;
   background: #fff;
   clip-path: polygon(0 0, 88% 67%, 55% 70%, 72% 100%, 57% 100%, 42% 73%, 18% 96%);
   filter: drop-shadow(0 1px 1px #000) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-20%, -16%) scale(0.92);
+  transform: scale(0.92);
   transform-origin: 18% 10%;
-  transition:
-    left 820ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    top 820ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    opacity 180ms ease,
-    transform 110ms ease;
+  transition: transform 110ms ease;
 }
 
 .pd-auto-cursor i {
@@ -1223,11 +1383,14 @@
 
 .pd-auto-cursor.is-visible {
   opacity: 0.96;
-  transform: translate(-20%, -16%) scale(1);
 }
 
-.pd-auto-cursor.is-pressing {
-  transform: translate(-20%, -16%) scale(0.78);
+.pd-auto-cursor.is-visible > span {
+  transform: scale(1);
+}
+
+.pd-auto-cursor.is-pressing > span {
+  transform: scale(0.78);
 }
 
 .pd-auto-cursor.is-pressing i {
@@ -1271,6 +1434,10 @@
   transform: translateX(-50%);
 }
 
+.pd-mobile-tabs {
+  display: none;
+}
+
 .pd-demo-footer {
   display: flex;
   align-items: center;
@@ -1298,6 +1465,17 @@
   border-color: rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.065);
   color: #d4d5d1;
+}
+
+.pd-autoplay-toggle:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.pd-autoplay-toggle:disabled:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
+  color: #8a8b88;
 }
 
 .pd-autoplay-toggle span {
@@ -1341,6 +1519,39 @@
   .pd-collapse {
     width: 2.35cqw;
     height: 2.35cqw;
+  }
+
+  .pd-mobile-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 14px;
+  }
+
+  .pd-mobile-tabs button {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 5px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--pd-text-3);
+    cursor: pointer;
+    font-size: 11px;
+  }
+
+  .pd-mobile-tabs button.is-active {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: var(--pd-surface-2);
+    color: var(--pd-text-1);
+  }
+
+  .pd-mobile-tabs .pd-tab-icon {
+    width: 14px;
+    height: 14px;
   }
 
   .pd-demo-footer {

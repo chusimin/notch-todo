@@ -13,13 +13,46 @@ import {
 import "./ProductDemo.css";
 
 const DEMO_TABS = [
-  { id: "home", label: "首页", glyph: "⌂" },
-  { id: "todo", label: "待办", glyph: "✓" },
-  { id: "clip", label: "剪贴板", glyph: "▣" },
-  { id: "apps", label: "应用", glyph: "⌘" },
+  { id: "home", label: "首页" },
+  { id: "todo", label: "待办" },
+  { id: "clip", label: "剪贴板" },
+  { id: "apps", label: "应用" },
 ] as const;
 
 type DemoTab = (typeof DEMO_TABS)[number]["id"];
+
+function TabIcon({ tab }: { tab: DemoTab }) {
+  if (tab === "home") {
+    return (
+      <svg className="pd-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9h12v-9" />
+      </svg>
+    );
+  }
+  if (tab === "todo") {
+    return (
+      <svg className="pd-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h10M4 12h10M4 17h7M17.5 7.5 19 9l2.5-3" />
+      </svg>
+    );
+  }
+  if (tab === "clip") {
+    return (
+      <svg className="pd-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="pd-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
+    </svg>
+  );
+}
 
 const TODO_GROUPS = [
   {
@@ -112,6 +145,9 @@ const APPS = [
 ] as const;
 
 function HomePanel() {
+  const [mirrorOn, setMirrorOn] = useState(false);
+  const [openedApp, setOpenedApp] = useState<string | null>(null);
+
   return (
     <div className="pd-home-grid">
       <section className="pd-tile pd-home-clock">
@@ -119,22 +155,37 @@ function HomePanel() {
         <div className="pd-clock-time"><strong>09:<em>41</em></strong><small>26</small></div>
       </section>
 
-      <section className="pd-tile pd-home-mirror">
-        <div className="pd-mirror-stage">
-          <span className="pd-camera-glyph"><i /></span>
-          <strong>镜子</strong>
-          <small>点按开启</small>
+      <button
+        className={`pd-tile pd-home-mirror${mirrorOn ? " is-on" : ""}`}
+        type="button"
+        aria-pressed={mirrorOn}
+        onClick={() => setMirrorOn((value) => !value)}
+      >
+        <div className={`pd-mirror-stage${mirrorOn ? " is-live" : ""}`}>
+          {mirrorOn ? (
+            <span className="pd-mirror-person" aria-hidden="true"><i /><b /></span>
+          ) : (
+            <span className="pd-camera-glyph"><i /></span>
+          )}
+          <strong>{mirrorOn ? "镜子已开启" : "镜子"}</strong>
+          <small>{mirrorOn ? "再次点按关闭" : "点按开启"}</small>
         </div>
-      </section>
+      </button>
 
       <section className="pd-tile pd-home-quick">
         <div className="pd-tile-header"><span>快捷应用</span><b>＋</b></div>
         <div className="pd-quick-grid">
           {APPS.slice(0, 6).map(([glyph, name, icon, tone]) => (
-            <div className="pd-quick-app" key={name}>
+            <button
+              className={`pd-quick-app${openedApp === name ? " is-launched" : ""}`}
+              type="button"
+              aria-label={`模拟打开 ${name}`}
+              onClick={() => setOpenedApp(name)}
+              key={name}
+            >
               <span className={`pd-app-icon pd-icon-${icon} pd-tone-${tone}`}>{glyph}</span>
-              <small>{name}</small>
-            </div>
+              <small>{openedApp === name ? "已打开" : name}</small>
+            </button>
           ))}
         </div>
       </section>
@@ -142,7 +193,7 @@ function HomePanel() {
       <section className="pd-tile pd-home-note">
         <div className="pd-note-tools" aria-hidden="true">
           <span>H</span><span><b>B</b></span><span><i>I</i></span><span>•</span><span>1.</span><span>✓</span><span>”</span><span>&lt;&gt;</span>
-          <div><b>编辑</b><span>预览</span></div>
+          <div><span>编辑</span><b>预览</b></div>
         </div>
         <div className="pd-note-copy">
           <strong># 今天</strong>
@@ -166,31 +217,58 @@ function HomePanel() {
 }
 
 function TodoPanel() {
+  const [completed, setCompleted] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      TODO_GROUPS.flatMap((group) =>
+        group.items.map(([text, done]) => [`${group.id}:${text}`, done]),
+      ),
+    ),
+  );
+
+  const toggleTask = (key: string) => {
+    setCompleted((current) => ({ ...current, [key]: !current[key] }));
+  };
+
   return (
     <div className="pd-todo-grid">
-      {TODO_GROUPS.map((group) => (
-        <section className={`pd-tile pd-todo-group pd-group-${group.color}`} key={group.id}>
-          <header>
-            <i className={`pd-priority-dot pd-dot-${group.color}`} />
-            <strong>{group.id}</strong>
-            <span>{group.label}</span>
-            <small>{group.items.filter((item) => !item[1]).length}</small>
-          </header>
-          <div className="pd-tasks">
-            {group.items.map(([text, done]) => (
-              <div className={done ? "pd-task is-done" : "pd-task"} key={text}>
-                <i>{done ? "✓" : ""}</i><span>{text}</span>
-              </div>
-            ))}
-          </div>
-          <div className="pd-add-task">添加 {group.id} 待办，回车保存…</div>
-        </section>
-      ))}
+      {TODO_GROUPS.map((group) => {
+        const remaining = group.items.filter(([text]) => !completed[`${group.id}:${text}`]).length;
+        return (
+          <section className={`pd-tile pd-todo-group pd-group-${group.color}`} key={group.id}>
+            <header>
+              <i className={`pd-priority-dot pd-dot-${group.color}`} />
+              <strong>{group.id}</strong>
+              <span>{group.label}</span>
+              <small>{remaining}</small>
+            </header>
+            <div className="pd-tasks">
+              {group.items.map(([text]) => {
+                const taskKey = `${group.id}:${text}`;
+                const done = completed[taskKey];
+                return (
+                  <button
+                    className={done ? "pd-task is-done" : "pd-task"}
+                    type="button"
+                    aria-pressed={done}
+                    onClick={() => toggleTask(taskKey)}
+                    key={text}
+                  >
+                    <i>{done ? "✓" : ""}</i><span>{text}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="pd-add-task">添加 {group.id} 待办，回车保存…</div>
+          </section>
+        );
+      })}
     </div>
   );
 }
 
 function ClipPanel() {
+  const [filter, setFilter] = useState<"all" | "text" | "image" | "favorite">("all");
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const clips = [
     { kind: "text", content: "今天先完成最重要的一件事。", time: "刚刚", favorite: false },
     { kind: "url", content: "github.com/chusimin/notch-todo", time: "3 分钟前", favorite: true },
@@ -201,22 +279,63 @@ function ClipPanel() {
     { kind: "url", content: "developer.apple.com/design", time: "2 小时前", favorite: false },
     { kind: "image", content: "", time: "8/6", favorite: true },
   ];
+  const filters = [
+    ["all", "全部"],
+    ["text", "文字"],
+    ["image", "图片"],
+    ["favorite", "收藏"],
+  ] as const;
+  const visibleClips = clips
+    .map((clip, index) => ({ clip, index }))
+    .filter(({ clip }) => {
+      if (filter === "text") return clip.kind !== "image";
+      if (filter === "image") return clip.kind === "image";
+      if (filter === "favorite") return clip.favorite;
+      return true;
+    });
 
   return (
     <div className="pd-clip-panel">
       <div className="pd-clip-toolbar">
-        <span className="is-active">全部</span><span>文字</span><span>图片</span><span>收藏</span>
-        <span className="pd-clip-clear" aria-hidden="true">⌫</span>
+        {filters.map(([value, label]) => (
+          <button
+            className={filter === value ? "is-active" : ""}
+            type="button"
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+            key={value}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          className="pd-clip-clear"
+          type="button"
+          aria-label="重置剪贴板演示"
+          onClick={() => { setFilter("all"); setCopiedIndex(null); }}
+        >⌫</button>
       </div>
       <div className="pd-clip-grid">
-        {clips.map((clip, index) => (
-          <article className={`pd-clip-card pd-clip-${clip.kind}`} key={`${clip.time}-${index}`}>
+        {visibleClips.map(({ clip, index }) => (
+          <article
+            className={`pd-clip-card pd-clip-${clip.kind}${copiedIndex === index ? " is-copied" : ""}`}
+            key={`${clip.time}-${index}`}
+          >
+            <button
+              className="pd-clip-hit"
+              type="button"
+              aria-label={clip.kind === "image" ? `复制 ${clip.time} 的图片` : `复制：${clip.content}`}
+              onClick={() => setCopiedIndex(index)}
+            />
             {clip.kind === "image" ? (
               <div className={`pd-clip-art pd-art-${index}`} aria-label="脱敏图片缩略图"><span /></div>
             ) : (
               <p className={clip.code ? "is-code" : ""}>{clip.content}</p>
             )}
-            <footer><time>{clip.time}</time>{clip.favorite && <span>★</span>}</footer>
+            <footer>
+              <time>{clip.time}</time>
+              <span aria-live="polite">{copiedIndex === index ? "已复制" : clip.favorite ? "★" : ""}</span>
+            </footer>
           </article>
         ))}
       </div>
@@ -224,39 +343,56 @@ function ClipPanel() {
   );
 }
 
-function AppsPanel() {
+function AppsPanel({ query }: { query: string }) {
+  const [launchedApp, setLaunchedApp] = useState<string | null>(null);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleApps = APPS.filter(([, name]) =>
+    name.toLocaleLowerCase().includes(normalizedQuery),
+  );
+
+  const appButton = (
+    [glyph, name, icon, tone]: (typeof APPS)[number],
+    favorite: boolean,
+  ) => (
+    <button
+      className={`pd-app-cell${launchedApp === name ? " is-launched" : ""}`}
+      type="button"
+      aria-label={`模拟打开 ${name}`}
+      onClick={() => setLaunchedApp(name)}
+      key={name}
+    >
+      <span className={`pd-app-icon pd-icon-${icon} pd-tone-${tone}`}>{glyph}</span>
+      <small>{name}</small>{favorite && <i>★</i>}
+    </button>
+  );
+
   return (
     <div className="pd-apps-layout">
       <section className="pd-tile pd-apps-favorites">
         <header><span>常用</span><small>{APPS.slice(0, 4).length}</small></header>
         <div className="pd-favorite-app-grid">
-          {APPS.slice(0, 4).map(([glyph, name, icon, tone]) => (
-            <div className="pd-app-cell" key={name}>
-              <span className={`pd-app-icon pd-icon-${icon} pd-tone-${tone}`}>{glyph}</span>
-              <small>{name}</small><i>★</i>
-            </div>
-          ))}
+          {APPS.slice(0, 4).map((app) => appButton(app, true))}
         </div>
       </section>
       <section className="pd-app-library">
-        <header><span>全部应用</span><small>{APPS.length} 个应用</small></header>
+        <header>
+          <span>全部应用</span>
+          <small aria-live="polite" aria-atomic="true">{visibleApps.length} 个应用</small>
+        </header>
+        {launchedApp && <span className="pd-app-launch-toast" role="status">✓ 已模拟打开 {launchedApp}</span>}
         <div className="pd-all-app-grid">
-          {APPS.map(([glyph, name, icon, tone], index) => (
-            <div className="pd-app-cell" key={name}>
-              <span className={`pd-app-icon pd-icon-${icon} pd-tone-${tone}`}>{glyph}</span>
-              <small>{name}</small>{index < 4 && <i>★</i>}
-            </div>
-          ))}
+          {visibleApps.map((app) => appButton(app, APPS.slice(0, 4).includes(app)))}
+          {visibleApps.length === 0 && <p className="pd-app-empty">没有匹配的应用</p>}
         </div>
       </section>
     </div>
   );
 }
 
-function PanelContent({ tab }: { tab: DemoTab }) {
+function PanelContent({ tab, appQuery }: { tab: DemoTab; appQuery: string }) {
   if (tab === "todo") return <TodoPanel />;
   if (tab === "clip") return <ClipPanel />;
-  if (tab === "apps") return <AppsPanel />;
+  if (tab === "apps") return <AppsPanel query={appQuery} />;
   return <HomePanel />;
 }
 
@@ -274,13 +410,16 @@ export default function ProductDemo() {
   const [cursorVisible, setCursorVisible] = useState(false);
   const [cursorPressing, setCursorPressing] = useState(false);
   const [manualPause, setManualPause] = useState(false);
-  const [interactionHeld, setInteractionHeld] = useState(false);
+  const [pointerHeld, setPointerHeld] = useState(false);
+  const [focusHeld, setFocusHeld] = useState(false);
   const [autoplayEnabled, setAutoplayEnabled] = useState(true);
   const [isInView, setIsInView] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [appQuery, setAppQuery] = useState("");
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
   const [indicatorGeometry, setIndicatorGeometry] = useState({ left: 0, width: 0 });
+  const interactionHeld = pointerHeld || focusHeld;
 
   const selectTab = useCallback((tab: DemoTab) => {
     activeTabRef.current = tab;
@@ -300,7 +439,6 @@ export default function ProductDemo() {
 
   const chooseTab = useCallback((tab: DemoTab) => {
     pauseAutoplay();
-    setAutoplayEnabled(false);
     selectTab(tab);
   }, [pauseAutoplay, selectTab]);
 
@@ -450,7 +588,7 @@ export default function ProductDemo() {
   function handleFocusOut(event: FocusEvent<HTMLDivElement>) {
     const nextTarget = event.relatedTarget;
     if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-      setInteractionHeld(false);
+      setFocusHeld(false);
     }
   }
 
@@ -466,27 +604,37 @@ export default function ProductDemo() {
     }
   }
 
+  let demoStatusText = "切页、勾选、筛选、搜索与滚动，都可以由你接管。";
+  if (reduceMotion) demoStatusText = "已遵循系统设置关闭自动动画，四个页面仍可手动操作。";
+  else if (focusHeld) demoStatusText = "你正在操作当前控件；焦点离开后会自动续播。";
+  else if (pointerHeld) demoStatusText = "你正在接管演示；移出电脑屏幕后会自动续播。";
+  else if (manualPause && autoplayEnabled) demoStatusText = "演示已让位，稍后会从当前页面继续。";
+  else if (!autoplayEnabled) demoStatusText = "自动演示已暂停，四个页面仍可手动操作。";
+
   return (
     <div
       className="pd-root"
       ref={rootRef}
       role="region"
-      onPointerEnter={() => {
-        setInteractionHeld(true);
-        pauseAutoplay();
-      }}
-      onPointerLeave={() => setInteractionHeld(false)}
-      onPointerDownCapture={pauseAutoplay}
-      onTouchStart={pauseAutoplay}
-      onFocusCapture={() => {
-        setInteractionHeld(true);
-        pauseAutoplay();
-      }}
-      onBlurCapture={handleFocusOut}
       aria-label="NotchTodo 交互产品演示"
     >
       <div className="pd-hardware">
-        <div className="pd-screen" ref={screenRef}>
+        <div
+          className="pd-screen"
+          ref={screenRef}
+          onPointerEnter={() => {
+            setPointerHeld(true);
+            pauseAutoplay();
+          }}
+          onPointerLeave={() => setPointerHeld(false)}
+          onPointerDownCapture={pauseAutoplay}
+          onTouchStart={pauseAutoplay}
+          onFocusCapture={() => {
+            setFocusHeld(true);
+            pauseAutoplay();
+          }}
+          onBlurCapture={handleFocusOut}
+        >
           <div className="pd-wallpaper" aria-hidden="true"><i /><i /><i /></div>
           <div className="pd-menu-bar" aria-hidden="true">
             <div><strong>●</strong><span>NotchTodo</span><span>文件</span><span>编辑</span></div>
@@ -511,7 +659,7 @@ export default function ProductDemo() {
                     onClick={() => chooseTab(tab.id)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                   >
-                    <span aria-hidden="true">{tab.glyph}</span>{tab.label}
+                    <TabIcon tab={tab.id} />{tab.label}
                   </button>
                 ))}
                 <span
@@ -521,7 +669,18 @@ export default function ProductDemo() {
                 />
               </div>
               <div className="pd-topbar-safe" />
-              {activeTab === "apps" && <div className="pd-app-search"><span>⌕</span>搜索应用…</div>}
+              {activeTab === "apps" && (
+                <label className="pd-app-search">
+                  <span aria-hidden="true">⌕</span>
+                  <input
+                    type="search"
+                    value={appQuery}
+                    onChange={(event) => setAppQuery(event.target.value)}
+                    placeholder="搜索应用…"
+                    aria-label="搜索演示应用"
+                  />
+                </label>
+              )}
               <span className="pd-collapse" aria-hidden="true">⌃</span>
             </div>
 
@@ -537,7 +696,7 @@ export default function ProductDemo() {
                   tabIndex={activeTab === tab.id ? 0 : -1}
                   key={tab.id}
                 >
-                  <PanelContent tab={tab.id} />
+                  <PanelContent tab={tab.id} appQuery={appQuery} />
                 </div>
               ))}
             </div>
@@ -557,23 +716,39 @@ export default function ProductDemo() {
             } as CSSProperties}
             aria-hidden="true"
           >
-            <i />
+            <span><i /></span>
           </div>
         </div>
         <div className="pd-camera-mark" aria-hidden="true" />
       </div>
       <div className="pd-hinge" aria-hidden="true"><span /></div>
+      <div className="pd-mobile-tabs" role="group" aria-label="移动端演示页面">
+        {DEMO_TABS.map((tab) => (
+          <button
+            className={activeTab === tab.id ? "is-active" : ""}
+            type="button"
+            aria-pressed={activeTab === tab.id}
+            onClick={() => chooseTab(tab.id)}
+            key={tab.id}
+          >
+            <TabIcon tab={tab.id} />{tab.label}
+          </button>
+        ))}
+      </div>
       <div className="pd-demo-footer">
         <button
           className="pd-autoplay-toggle"
           type="button"
-          aria-pressed={!autoplayEnabled}
+          aria-pressed={reduceMotion || !autoplayEnabled}
+          disabled={reduceMotion}
           onClick={toggleAutoplay}
         >
-          <span aria-hidden="true">{autoplayEnabled ? "Ⅱ" : "▶"}</span>
-          {autoplayEnabled ? "暂停自动演示" : "继续自动演示"}
+          <span aria-hidden="true">{reduceMotion ? "—" : autoplayEnabled ? "Ⅱ" : "▶"}</span>
+          {reduceMotion ? "已关闭自动演示" : autoplayEnabled ? "暂停自动演示" : "继续自动演示"}
         </button>
-        <p className="pd-a11y-note">点击或用方向键即可接管四个页面。</p>
+        <p className="pd-a11y-note" aria-live="polite" aria-atomic="true">
+          {demoStatusText}
+        </p>
       </div>
     </div>
   );
